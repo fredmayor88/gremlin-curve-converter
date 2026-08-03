@@ -760,6 +760,13 @@ function vsLinear(slope) {
   return p.tail ? `${p.big} ${p.tail}` : p.big;
 }
 
+// For the short segments, where "42.5% slower" is less readable than a multiplier.
+function ratio(slope) {
+  if (!Number.isFinite(slope)) return "vertical";
+  if (Math.abs(slope - 1) < 0.005) return "1× — same as 1:1";
+  return `${fmt(slope, 2)}× ${slope > 1 ? "steeper" : "shallower"}`;
+}
+
 function rateCard() {
   const pts = points();
   const segs = segments(pts);
@@ -777,8 +784,9 @@ function rateCard() {
 
   const sub = document.createElement("p");
   sub.className = "rate-sub";
-  sub.innerHTML = `<b>${fmt(main.slope * 100, 1)}% of 1:1</b> over the main stretch ` +
-                  `(${fmt(main.from, 1)} → ${fmt(main.to, 1)}), where most of the driving happens.`;
+  sub.innerHTML = `Over the main stretch (${fmt(main.from, 1)} → ${fmt(main.to, 1)}), where most of ` +
+                  `the driving happens: <b>10% more pedal gives you ${fmt(main.slope * 10, 2)}% more ` +
+                  `throttle</b>, where a straight 1:1 would give you 10%.`;
   card.append(sub);
 
   const ul = document.createElement("ul");
@@ -786,7 +794,7 @@ function rateCard() {
   for (const [seg, label] of [[segs[0], "lead-in"], [segs[2], "top end"]]) {
     const li = document.createElement("li");
     li.innerHTML = `<span class="name">${label} ${fmt(seg.from, 1)} → ${fmt(seg.to, 1)}</span>` +
-                   `<span class="mono">${fmt(seg.slope * 100, 0)}% of 1:1</span>`;
+                   `<span class="mono">${ratio(seg.slope)}</span>`;
     ul.append(li);
   }
   card.append(ul);
@@ -997,7 +1005,7 @@ function outputText() {
   );
   if (state.tab !== "raw") {
     const s = state.tab === "free" ? state.free : state.fixed;
-    lines.unshift(`slope ${fmt(s.slope, 3)}  (${fmt(s.slope * 100, 1)}% of 1:1 — ${vsLinear(s.slope)})`);
+    lines.unshift(`slope ${fmt(s.slope, 3)}  (${vsLinear(s.slope)})`);
   }
   return lines.join("\n");
 }
