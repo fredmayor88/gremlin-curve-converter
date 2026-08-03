@@ -268,6 +268,43 @@
 
   .rate-segs .mono { font-size: 12.5px; color: var(--text); }
 
+  /* ---- experiment ---- */
+  #model {
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  #model h3 { margin: 0 0 6px; font-size: 14px; font-weight: 650; }
+
+  .model-warn {
+    margin: 0 0 14px;
+    padding: 9px 12px;
+    background: var(--bg);
+    border-left: 2px solid var(--oak);
+    border-radius: 0 7px 7px 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .model-warn b { color: var(--text); }
+
+  .legend { list-style: none; display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0 0; padding: 0; }
+  .legend li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+  .sw { width: 15px; height: 3px; border-radius: 2px; flex: none; }
+  .sw-raw { background: var(--oak); }
+  .sw-fixed { background: var(--accent); }
+
+  .curve-raw { stroke: var(--oak); stroke-width: 2; fill: none; }
+  .curve-fixed { stroke: var(--accent); stroke-width: 2.25; fill: none; }
+
+  .model-table { margin-top: 14px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .model-table th, .model-table td { padding: 6px 12px; }
+  .model-table td { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+  .model-table .gain { color: var(--accent); }
+
+  #model-controls { margin-top: 16px; }
+
   /* hover readout on the XY graph */
   .hov-line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.7; }
   .hov-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
@@ -410,6 +447,28 @@
       <div>
         <svg class="graph" id="graph" viewBox="0 0 440 440" aria-label="Curve preview"></svg>
         <p class="hint" id="graph-hint"></p>
+
+        <section id="model" hidden>
+          <h3>Experiment — what this does to the car</h3>
+          <p class="model-warn">
+            <b>Modelled, not measured.</b> The game's own throttle curve is a guess with roughly
+            the right shape — flat for the first third, then exponential. The chain is
+            <b>pedal → your Gremlin curve → the game's curve → throttle</b>, so this is what
+            comes out the far end. Treat the shapes as the argument, not the numbers.
+          </p>
+          <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
+          <ul class="legend">
+            <li><i class="sw sw-raw"></i>in-game now — pedal straight through</li>
+            <li><i class="sw sw-fixed"></i>with your curve applied first</li>
+          </ul>
+          <div id="model-controls"></div>
+          <table class="model-table">
+            <thead>
+              <tr><th>Pedal</th><th class="num">Throttle now</th><th class="num">With your curve</th></tr>
+            </thead>
+            <tbody id="model-body"></tbody>
+          </table>
+        </section>
       </div>
       <div>
         <div id="controls"></div>
@@ -507,26 +566,31 @@ function el(tag, attrs, text) {
   return n;
 }
 
-function drawGraph() {
-  graph.textContent = "";
-  const pts = points();
+// Grid, axes, 1:1 reference and labels — shared by both graphs.
+function drawFrame(svg, xLabel, yLabel) {
+  svg.textContent = "";
 
   for (let v = 0; v <= 100; v += 10) {
-    graph.append(el("line", { class: "gridline", x1: px(v), y1: py(0), x2: px(v), y2: py(100) }));
-    graph.append(el("line", { class: "gridline", x1: px(0), y1: py(v), x2: px(100), y2: py(v) }));
+    svg.append(el("line", { class: "gridline", x1: px(v), y1: py(0), x2: px(v), y2: py(100) }));
+    svg.append(el("line", { class: "gridline", x1: px(0), y1: py(v), x2: px(100), y2: py(v) }));
   }
 
-  graph.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(100), y2: py(0) }));
-  graph.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(0), y2: py(100) }));
-  graph.append(el("line", { class: "identity", x1: px(0), y1: py(0), x2: px(100), y2: py(100) }));
+  svg.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(100), y2: py(0) }));
+  svg.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(0), y2: py(100) }));
+  svg.append(el("line", { class: "identity", x1: px(0), y1: py(0), x2: px(100), y2: py(100) }));
 
   for (const [v, lbl] of [[0, "0"], [50, "50"], [100, "100"]]) {
-    graph.append(el("text", { x: px(v), y: SIZE - PAD + 16, "text-anchor": "middle" }, lbl));
-    graph.append(el("text", { x: PAD - 8, y: py(v) + 4, "text-anchor": "end" }, lbl));
+    svg.append(el("text", { x: px(v), y: SIZE - PAD + 16, "text-anchor": "middle" }, lbl));
+    svg.append(el("text", { x: PAD - 8, y: py(v) + 4, "text-anchor": "end" }, lbl));
   }
-  graph.append(el("text", { x: px(50), y: SIZE - 4, "text-anchor": "middle" }, "input"));
-  graph.append(el("text",
-    { x: 12, y: py(50), "text-anchor": "middle", transform: `rotate(-90 12 ${py(50)})` }, "output"));
+  svg.append(el("text", { x: px(50), y: SIZE - 4, "text-anchor": "middle" }, xLabel));
+  svg.append(el("text",
+    { x: 12, y: py(50), "text-anchor": "middle", transform: `rotate(-90 12 ${py(50)})` }, yLabel));
+}
+
+function drawGraph() {
+  const pts = points();
+  drawFrame(graph, "input", "output");
 
   // gremlin owns (0,0) and (100,100); everything in between is ours
   const sorted = [...pts].sort((a, b) => a.x - b.x);
@@ -734,6 +798,73 @@ const TIPS = {
     "Resolution is <b>0.001</b> (dragging, typing, arrow keys). The −/+ buttons nudge by 0.01."
   ]
 };
+
+/* ---------- the experiment: what the game does with what we send it ---------- */
+// A stand-in for ACR's own throttle curve: f(x) = (e^(k·x³) − 1) / (e^k − 1).
+// Normalised to pass through (0,0) and (1,1). The x³ keeps the first third
+// nearly flat, the exponential makes the top end vicious — the thing we're fixing.
+const MODEL = { k: 3 };
+
+const gameCurve = (x, k) => (Math.exp(k * x ** 3) - 1) / (Math.exp(k) - 1);
+
+// Our correction, sampled as a function: pedal 0-1 in, what Gremlin sends 0-1 out.
+function correction(x01) {
+  const x = x01 * 100;
+  const segs = segments(points());
+  const seg = segs.find(s => x >= s.from && x <= s.to) || segs[segs.length - 1];
+  const y = Number.isFinite(seg.slope) ? seg.yFrom + seg.slope * (x - seg.from) : seg.yTo;
+  return clamp(y, 0, 100) / 100;
+}
+
+const modelSection = document.getElementById("model");
+const modelGraph = document.getElementById("model-graph");
+const modelBody = document.getElementById("model-body");
+const modelControls = document.getElementById("model-controls");
+
+function drawModel() {
+  // Only the ACR tab — the other two aren't about this game's curve.
+  modelSection.hidden = state.tab !== "fixed";
+  if (modelSection.hidden) return;
+
+  drawFrame(modelGraph, "pedal travel", "throttle in-game");
+
+  const raw = [], fixed = [];
+  for (let i = 0; i <= 200; i++) {
+    const x = i / 200;
+    raw.push(`${px(x * 100)},${py(gameCurve(x, MODEL.k) * 100)}`);
+    fixed.push(`${px(x * 100)},${py(gameCurve(correction(x), MODEL.k) * 100)}`);
+  }
+  modelGraph.append(el("polyline", { class: "curve-raw", points: raw.join(" ") }));
+  modelGraph.append(el("polyline", { class: "curve-fixed", points: fixed.join(" ") }));
+
+  modelBody.textContent = "";
+  for (const pedal of [10, 25, 50, 75, 90]) {
+    const x = pedal / 100;
+    const now = gameCurve(x, MODEL.k) * 100;
+    const after = gameCurve(correction(x), MODEL.k) * 100;
+
+    const tr = document.createElement("tr");
+    for (const [cls, txt] of [
+      ["", `${pedal}%`],
+      ["num", `${fmt(now, 1)}%`],
+      ["num gain", `${fmt(after, 1)}%`]
+    ]) {
+      const td = document.createElement("td");
+      td.className = cls;
+      td.textContent = txt;
+      tr.append(td);
+    }
+    modelBody.append(tr);
+  }
+
+  modelControls.textContent = "";
+  modelControls.append(stepper({
+    key: "k", label: "k — how vicious the modelled game curve is", value: MODEL.k,
+    step: 0.1, dp: 1, min: 0.5, max: 8,
+    note: "Only changes the model, never your curve. Raise it until the grey line matches how the car feels.",
+    onChange: v => { MODEL.k = v; }
+  }));
+}
 
 /* ---------- rate vs. a 1:1 linear response ---------- */
 // Every segment of the curve, including the two Gremlin owns.
@@ -1048,10 +1179,11 @@ function render() {
   drawGraph();
   drawControls();
   drawOutput();
+  drawModel();
   syncUrl();
 
   if (focusKey) {
-    const back = controls.querySelector(`[data-key="${focusKey}"]`);
+    const back = document.querySelector(`[data-key="${focusKey}"]`);
     if (back) back.focus();
   }
 }
@@ -1069,7 +1201,7 @@ function hashFor(tab) {
   }
   if (tab === "fixed") {
     const s = state.fixed;
-    return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}`;
+    return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}&k=${fmt(MODEL.k, 1)}`;
   }
   const s = state.free;
   return `#${SLUG.free}?x1=${fmt(s.x1, 0)}&y1=${fmt(s.y1, 1)}` +
@@ -1111,6 +1243,9 @@ function applyParams(tab, q) {
 
   const slope = num("slope");
   if (slope !== null) s.slope = clamp(tidy(snap(slope, STEP.slope)), -5, 5);
+
+  const k = num("k");
+  if (k !== null) MODEL.k = clamp(tidy(snap(k, 0.1)), 0.5, 8);
 }
 
 // Debounced: dragging would otherwise write history on every pointer move,

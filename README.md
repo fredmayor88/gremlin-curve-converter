@@ -69,6 +69,29 @@ p2 = (0.8,   0.5805)  gremlin  ->  (90, 79.025)   0-100
 Gremlin owns the endpoints `(-1, -1)` and `(1, 1)`; they're drawn hollow and stay out of the
 output. Segments are linear.
 
+## The experiment (ACR tab only)
+
+Below the editor there's a second graph modelling what the pedal actually does once the
+game has had its turn. The signal chain is:
+
+```
+pedal travel → your Gremlin curve → the game's own curve → throttle
+```
+
+The game's curve is a stand-in, not a measurement:
+
+```
+f(x) = (e^(k·x³) − 1) / (e^k − 1)      k defaults to 3
+```
+
+Normalised through `(0,0)` and `(1,1)`. The `x³` keeps the first third nearly flat; the
+exponential makes the top end vicious. `k` is adjustable — raise it until the grey line
+matches how the car actually feels. It only affects the model, never your curve.
+
+Two lines are drawn on the same axes: the pedal going straight into the game, and the pedal
+going through your curve first. The table underneath gives the numbers at a few pedal
+positions.
+
 ## Running it
 
 Open `index.html`. That's it — no build, no dependencies.
