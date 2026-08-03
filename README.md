@@ -78,19 +78,28 @@ game has had its turn. The signal chain is:
 pedal travel → your Gremlin curve → the game's own curve → throttle
 ```
 
-The game's curve is a stand-in, not a measurement:
+The game's own curve is **inferred, not measured** — a normalised logistic:
 
 ```
-f(x) = (e^(k·x³) − 1) / (e^k − 1)      k defaults to 3
+f(x) = (σ(s·(x − b)) − σ(−s·b)) / (σ(s·(1 − b)) − σ(−s·b))      σ(t) = 1/(1 + e^-t)
 ```
 
-Normalised through `(0,0)` and `(1,1)`. The `x³` keeps the first third nearly flat; the
-exponential makes the top end vicious. `k` is adjustable — raise it until the grey line
-matches how the car actually feels. It only affects the model, never your curve.
+The defaults `s = 7.6`, `b = 0.57` aren't invented: they're the pair that best reproduces
+the actual result in the car — clean modulation up to ~80% output once the correction is
+applied — fitted at RMS ≈ 2%. So the grey line is what ACR *must* be doing for that to be
+true. An exponential in `x³` was tried first and can't produce that response at any
+setting; it's far too flat through the middle.
 
-Two lines are drawn on the same axes: the pedal going straight into the game, and the pedal
-going through your curve first. The table underneath gives the numbers at a few pedal
-positions.
+Both parameters are adjustable and affect only the model, never your curve.
+
+Two lines share the axes: pedal straight into the game, and pedal through your curve first.
+Three tiles report what you'd notice from the seat, before → after:
+
+| | Straight in | Through your curve |
+| --- | --- | --- |
+| Dead travel (under 5% throttle) | 21% | **2.2%** |
+| Stroke covering 10-80% throttle | 43.9% | **76.4%** |
+| Steepest run inside that band | 20% | **11.5%** per 10% pedal |
 
 ## Running it
 
