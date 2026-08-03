@@ -573,9 +573,12 @@ function drawHover() {
   const sub = `(${fmt(hoverX, 1)}, ${fmt(y, 2)})` +
               `   gremlin (${fmt(toGremlin(hoverX), 3)}, ${fmt(toGremlin(y), 3)})`;
 
+  // Prefer the right of the cursor, flip left when it would overhang — then
+  // clamp both axes into the viewBox, or the SVG clips the box.
   const W = 234, H = 40;
-  const bx = cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10;
-  const by = clamp(cy - H - 10, PAD + 2, SIZE - PAD - H - 2);
+  const prefer = cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10;
+  const bx = clamp(prefer, 4, SIZE - W - 4);
+  const by = clamp(cy - H - 10, 4, SIZE - H - 4);
 
   hoverLayer.append(el("rect", { class: "hov-box", x: bx, y: by, width: W, height: H, rx: 6 }));
   hoverLayer.append(el("text", { class: "hov-main", x: bx + 9, y: by + 17 }, main));
@@ -1023,17 +1026,33 @@ function render() {
   }
 }
 
-for (const tab of document.querySelectorAll(".tab")) {
-  tab.onclick = () => {
-    state.tab = tab.dataset.tab;
-    for (const t of document.querySelectorAll(".tab")) {
-      t.setAttribute("aria-selected", String(t === tab));
-    }
-    render();
-  };
+/* ---------- routing ---------- */
+// Each tab is linkable: #xy, #twitchy, #twitchy-free.
+const SLUG = { raw: "xy", fixed: "twitchy", free: "twitchy-free" };
+const TAB_OF = Object.fromEntries(Object.entries(SLUG).map(([tab, slug]) => [slug, tab]));
+
+function selectTab(tab) {
+  state.tab = tab;
+  for (const t of document.querySelectorAll(".tab")) {
+    t.setAttribute("aria-selected", String(t.dataset.tab === tab));
+  }
+  render();
 }
 
-render();
+for (const tab of document.querySelectorAll(".tab")) {
+  // Setting the hash fires hashchange, which does the actual switching —
+  // that keeps clicks and pasted links on one path, and back/forward works.
+  tab.onclick = () => { location.hash = SLUG[tab.dataset.tab]; };
+}
+
+window.addEventListener("hashchange", () => {
+  const tab = TAB_OF[location.hash.slice(1)];
+  if (tab && tab !== state.tab) selectTab(tab);
+});
+
+const fromUrl = TAB_OF[location.hash.slice(1)];
+if (!fromUrl) history.replaceState(null, "", "#" + SLUG[state.tab]); // no history entry on load
+selectTab(fromUrl || state.tab);
 </script>
 </body>
 </html>

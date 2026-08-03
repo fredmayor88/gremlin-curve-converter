@@ -24,6 +24,12 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 On every tab, hovering the graph reads out the slope under the cursor, how much
 faster/slower that is than 1:1, and the point itself in both coordinate spaces.
 
+Each tab has its own link:
+
+- [`#xy`](https://fredmayor88.github.io/gremlin-curve-converter/#xy)
+- [`#twitchy`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy)
+- [`#twitchy-free`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy-free)
+
 ### What the two knobs do
 
 **`y1` — dead range at the start of the pedal stroke**
