@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curve Converter — 0-100 → Joystick Gremlin</title>
+<style>
+  :root {
+    --warm-white: #F5F2EB;
+    --graphite: #30353A;
+    --dark-graphite: #212529;
+    --steel: #7B858E;
+    --walnut: #7A583B;
+    --oak: #B89873;
+    --cyan: #25C4E2;
+    --deep-cyan: #148FAC;
+
+    --bg: var(--warm-white);
+    --panel: #FFFFFF;
+    --text: var(--graphite);
+    --muted: var(--steel);
+    --line: #DFD9CE;
+    --accent: var(--deep-cyan);
+    --grid: #E7E1D6;
+    --warn: #B4472E;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--dark-graphite);
+      --panel: #2A2F34;
+      --text: #E8E4DC;
+      --muted: #949DA6;
+      --line: #3C4248;
+      --accent: var(--cyan);
+      --grid: #363C42;
+      --warn: #E08163;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 20px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  header { margin-bottom: 22px; }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 21px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .sub { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .sub code {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+
+  /* ---- tabs ---- */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin: 20px 0 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tab {
+    appearance: none;
+    background: none;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 7px 7px 0 0;
+    padding: 9px 15px;
+    margin-bottom: -1px;
+    font: inherit;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab[aria-selected="true"] {
+    background: var(--panel);
+    border-color: var(--line);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .tab[aria-selected="true"]::after {
+    content: "";
+    display: block;
+    height: 2px;
+    background: var(--accent);
+    margin: 8px -15px -10px;
+  }
+
+  /* ---- layout ---- */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 20px;
+  }
+
+  .cols {
+    display: grid;
+    grid-template-columns: minmax(320px, 460px) 1fr;
+    gap: 26px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .cols { grid-template-columns: 1fr; }
+  }
+
+  .hint {
+    color: var(--muted);
+    font-size: 12.5px;
+    margin: 10px 0 0;
+  }
+
+  /* ---- graph ---- */
+  .graph { width: 100%; height: auto; touch-action: none; display: block; }
+  .graph text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .axis { stroke: var(--muted); stroke-width: 1.25; }
+  .identity { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; opacity: 0.55; }
+  .curve { stroke: var(--accent); stroke-width: 2.25; fill: none; stroke-linejoin: round; }
+  .endpoint { fill: var(--bg); stroke: var(--muted); stroke-width: 1.5; }
+  .knob { fill: var(--accent); stroke: var(--panel); stroke-width: 2; cursor: grab; }
+  .knob:active { cursor: grabbing; }
+  .knob-hit { fill: transparent; cursor: grab; }
+  .knob-label { fill: var(--text); font-size: 11px; font-weight: 600; }
+
+  /* ---- controls ---- */
+  .ctrl { margin-bottom: 14px; }
+
+  .ctrl > label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  .stepper { display: flex; gap: 6px; align-items: stretch; }
+
+  .stepper input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15px;
+    padding: 7px 10px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+  }
+
+  .stepper input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  .stepper button, .btn {
+    appearance: none;
+    font: inherit;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 12px;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+
+  .stepper button { width: 38px; font-size: 16px; font-weight: 600; }
+  .stepper button:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .stepper button:active, .btn:active { background: var(--line); }
+
+  .step-note { color: var(--muted); font-size: 11.5px; margin: 4px 0 0; }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* ---- output ---- */
+  .out {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    overflow: hidden;
+  }
+
+  .out-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .out-head h2 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th, td {
+    text-align: left;
+    padding: 7px 12px;
+    font-size: 13.5px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  th {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  td.num, th.num { text-align: right; }
+
+  .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13.5px;
+  }
+
+  .gremlin { color: var(--accent); font-weight: 600; }
+  .name { color: var(--muted); }
+  .oob { color: var(--warn); font-weight: 600; }
+
+  .warn-msg {
+    margin: 10px 0 0;
+    color: var(--warn);
+    font-size: 12.5px;
+  }
+
+  /* ---- raw tab table ---- */
+  .pt-row td { padding: 5px 8px; }
+
+  .pt-row input {
+    width: 100%;
+    font: inherit;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    padding: 5px 8px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .pt-row input:focus { outline: none; border-color: var(--accent); }
+
+  .icon-btn {
+    appearance: none;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+
+  .icon-btn:hover { color: var(--warn); border-color: var(--line); }
+  .icon-btn:disabled { opacity: 0.3; cursor: default; }
+  .icon-btn:disabled:hover { color: var(--muted); border-color: transparent; }
+
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  .copied { color: var(--accent); font-size: 12px; font-weight: 600; }
+
+  footer {
+    max-width: 1080px;
+    margin: 22px auto 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Curve Converter <span>→ Joystick Gremlin</span></h1>
+    <p class="sub">
+      Design in <code>0-100</code>, read out the <code>-1 … 1</code> numbers to type into Gremlin.
+      Conversion is <code>g = v/50 − 1</code> both axes.
+    </p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-raw"   aria-selected="false" data-tab="raw">Raw</button>
+    <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">Two-point (fixed X)</button>
+    <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">Two-point (free X)</button>
+  </div>
+
+  <div class="panel">
+    <div class="cols">
+      <div>
+        <svg class="graph" id="graph" viewBox="0 0 440 440" aria-label="Curve preview"></svg>
+        <p class="hint" id="graph-hint"></p>
+      </div>
+      <div>
+        <div id="controls"></div>
+        <div class="out">
+          <div class="out-head">
+            <h2>Gremlin values</h2>
+            <button class="btn" id="copy-btn" type="button">Copy</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Point</th>
+                <th class="num">X (0-100)</th>
+                <th class="num">Y (0-100)</th>
+                <th class="num">X gremlin</th>
+                <th class="num">Y gremlin</th>
+              </tr>
+            </thead>
+            <tbody id="out-body"></tbody>
+          </table>
+        </div>
+        <p class="warn-msg" id="warn" hidden></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Gremlin curves always own the endpoints <span class="mono">(−1, −1)</span> and
+  <span class="mono">(1, 1)</span> — drawn hollow, not editable, not part of the output.
+  Segments are linear.
+</footer>
+
+<script>
+"use strict";
+
+/* ---------- coordinate space ---------- */
+// 0-100 (problem space) <-> -1..1 (gremlin). Same factor on both axes,
+// which is why a slope is the same number in either space.
+const toGremlin = v => v / 50 - 1;
+
+const SIZE = 440, PAD = 34, SPAN = SIZE - 2 * PAD;
+const px = x => PAD + (x / 100) * SPAN;
+const py = y => SIZE - PAD - (y / 100) * SPAN;
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const snap = (v, step) => Math.round(v / step) * step;
+// kill float dust from snapping (0.575 must not become 0.5750000000000001)
+const tidy = v => Math.round(v * 1e6) / 1e6;
+
+function fmt(v, dp) {
+  let s = v.toFixed(dp);
+  if (s.includes(".")) s = s.replace(/0+$/, "").replace(/\.$/, "");
+  return s;
+}
+
+/* ---------- state ---------- */
+// The default preset is the curve worked out in curveSettings.txt:
+// p1 = (3, 29) -> (-0.94, -0.42), slope 0.575, p2 = (90, 79.025) -> (0.8, 0.5805)
+const FIXED_X1 = 3, FIXED_X2 = 90;
+
+const state = {
+  tab: "fixed",
+  raw: { points: [ { x: 3, y: 29 }, { x: 90, y: 79 } ] },
+  fixed: { y1: 29, slope: 0.575 },
+  free: { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.575 }
+};
+
+/* ---------- derive the point list for the active tab ---------- */
+function points() {
+  if (state.tab === "raw") {
+    return state.raw.points.map((p, i) => ({ name: "p" + (i + 1), x: p.x, y: p.y }));
+  }
+  const s = state.tab === "fixed"
+    ? { x1: FIXED_X1, x2: FIXED_X2, y1: state.fixed.y1, slope: state.fixed.slope }
+    : state.free;
+  const y2 = tidy(s.y1 + s.slope * (s.x2 - s.x1));
+  return [
+    { name: "p1", x: s.x1, y: s.y1 },
+    { name: "p2", x: s.x2, y: y2 }
+  ];
+}
+
+/* ---------- graph ---------- */
+const graph = document.getElementById("graph");
+const SVGNS = "http://www.w3.org/2000/svg";
+
+function el(tag, attrs, text) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+function drawGraph() {
+  graph.textContent = "";
+  const pts = points();
+
+  for (let v = 0; v <= 100; v += 10) {
+    graph.append(el("line", { class: "gridline", x1: px(v), y1: py(0), x2: px(v), y2: py(100) }));
+    graph.append(el("line", { class: "gridline", x1: px(0), y1: py(v), x2: px(100), y2: py(v) }));
+  }
+
+  graph.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(100), y2: py(0) }));
+  graph.append(el("line", { class: "axis", x1: px(0), y1: py(0), x2: px(0), y2: py(100) }));
+  graph.append(el("line", { class: "identity", x1: px(0), y1: py(0), x2: px(100), y2: py(100) }));
+
+  for (const [v, lbl] of [[0, "0"], [50, "50"], [100, "100"]]) {
+    graph.append(el("text", { x: px(v), y: SIZE - PAD + 16, "text-anchor": "middle" }, lbl));
+    graph.append(el("text", { x: PAD - 8, y: py(v) + 4, "text-anchor": "end" }, lbl));
+  }
+  graph.append(el("text", { x: px(50), y: SIZE - 4, "text-anchor": "middle" }, "input"));
+  graph.append(el("text",
+    { x: 12, y: py(50), "text-anchor": "middle", transform: `rotate(-90 12 ${py(50)})` }, "output"));
+
+  // gremlin owns (0,0) and (100,100); everything in between is ours
+  const sorted = [...pts].sort((a, b) => a.x - b.x);
+  const chain = [{ x: 0, y: 0 }, ...sorted, { x: 100, y: 100 }];
+  graph.append(el("polyline", {
+    class: "curve",
+    points: chain.map(p => `${px(clamp(p.x, -20, 120))},${py(clamp(p.y, -20, 120))}`).join(" ")
+  }));
+
+  for (const p of [{ x: 0, y: 0 }, { x: 100, y: 100 }]) {
+    graph.append(el("circle", { class: "endpoint", cx: px(p.x), cy: py(p.y), r: 5 }));
+  }
+
+  pts.forEach((p, i) => {
+    const cx = px(clamp(p.x, 0, 100)), cy = py(clamp(p.y, 0, 100));
+    graph.append(el("circle", { class: "knob", cx, cy, r: 7 }));
+    graph.append(el("text", { class: "knob-label", x: cx + 11, y: cy - 9 }, p.name));
+    const hit = el("circle", { class: "knob-hit", cx, cy, r: 18 });
+    hit.addEventListener("pointerdown", ev => startDrag(ev, i));
+    graph.append(hit);
+  });
+}
+
+/* ---------- dragging ---------- */
+function eventToData(ev) {
+  const r = graph.getBoundingClientRect();
+  const gx = (ev.clientX - r.left) / r.width * SIZE;
+  const gy = (ev.clientY - r.top) / r.height * SIZE;
+  return {
+    x: clamp((gx - PAD) / SPAN * 100, 0, 100),
+    y: clamp((SIZE - PAD - gy) / SPAN * 100, 0, 100)
+  };
+}
+
+// Listeners go on window, not the knob: render() rebuilds the SVG on every
+// move, so anything bound to the knob itself dies mid-drag.
+function startDrag(ev, index) {
+  ev.preventDefault();
+
+  const move = e => { applyDrag(index, eventToData(e)); render(); };
+  const up = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", up);
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", up);
+  move(ev);
+}
+
+// Y always snaps to 1; slope always snaps to 0.01.
+function applyDrag(index, at) {
+  if (state.tab === "raw") {
+    const p = state.raw.points[index];
+    p.x = snap(at.x, 1);
+    p.y = snap(at.y, 1);
+    return;
+  }
+
+  const free = state.tab === "free";
+  const s = free ? state.free : state.fixed;
+  const x2 = free ? s.x2 : FIXED_X2;
+
+  if (index === 0) {
+    s.y1 = snap(at.y, 1);
+    if (free) s.x1 = clamp(snap(at.x, 1), 0, x2 - 1);
+  } else {
+    // p2's Y is not stored — it drives the slope
+    if (free) s.x2 = clamp(snap(at.x, 1), s.x1 + 1, 100);
+    const dx = (free ? s.x2 : FIXED_X2) - (free ? s.x1 : FIXED_X1);
+    s.slope = tidy(clamp(snap((at.y - s.y1) / dx, 0.01), -5, 5));
+  }
+}
+
+/* ---------- controls ---------- */
+const controls = document.getElementById("controls");
+
+function stepper({ label, value, step, dp, min, max, note, onChange }) {
+  const wrap = document.createElement("div");
+  wrap.className = "ctrl";
+
+  const lab = document.createElement("label");
+  lab.textContent = label;
+  wrap.append(lab);
+
+  const box = document.createElement("div");
+  box.className = "stepper";
+
+  const minus = document.createElement("button");
+  minus.type = "button";
+  minus.textContent = "−";
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.step = String(step);
+  input.value = fmt(value, dp);
+
+  const plus = document.createElement("button");
+  plus.type = "button";
+  plus.textContent = "+";
+
+  const set = v => onChange(tidy(clamp(snap(v, step), min, max)));
+
+  minus.onclick = () => { set(value - step); render(); };
+  plus.onclick = () => { set(value + step); render(); };
+  input.onchange = () => {
+    const v = parseFloat(input.value);
+    if (Number.isFinite(v)) set(v);
+    render();
+  };
+
+  box.append(minus, input, plus);
+  wrap.append(box);
+
+  if (note) {
+    const n = document.createElement("p");
+    n.className = "step-note";
+    n.textContent = note;
+    wrap.append(n);
+  }
+  return wrap;
+}
+
+function drawControls() {
+  controls.textContent = "";
+  const hint = document.getElementById("graph-hint");
+
+  if (state.tab === "raw") {
+    hint.textContent = "Drag any point (snaps to 1). Points are sorted by X for the curve.";
+    controls.append(rawEditor());
+    return;
+  }
+
+  const free = state.tab === "free";
+  const s = free ? state.free : state.fixed;
+
+  hint.textContent = free
+    ? "Drag p1 to set x1/y1, drag p2 to set x2 and the slope."
+    : "Drag p1 to set y1, drag p2 to set the slope. X is pinned.";
+
+  if (free) {
+    const row = document.createElement("div");
+    row.className = "row2";
+    row.append(
+      stepper({
+        label: "x1 (0-100)", value: s.x1, step: 1, dp: 0, min: 0, max: s.x2 - 1,
+        onChange: v => { s.x1 = v; }
+      }),
+      stepper({
+        label: "x2 (0-100)", value: s.x2, step: 1, dp: 0, min: s.x1 + 1, max: 100,
+        onChange: v => { s.x2 = v; }
+      })
+    );
+    controls.append(row);
+  } else {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.margin = "0 0 14px";
+    p.innerHTML = `X is pinned: <b class="mono">x1 = ${FIXED_X1}</b> (${fmt(toGremlin(FIXED_X1), 4)}), ` +
+                  `<b class="mono">x2 = ${FIXED_X2}</b> (${fmt(toGremlin(FIXED_X2), 4)}).`;
+    controls.append(p);
+  }
+
+  controls.append(stepper({
+    label: "y1 (0-100)", value: s.y1, step: 1, dp: 0, min: 0, max: 100,
+    note: "steps of 1",
+    onChange: v => { s.y1 = v; }
+  }));
+
+  controls.append(stepper({
+    label: "slope", value: s.slope, step: 0.01, dp: 2, min: -5, max: 5,
+    note: "steps of 0.01 — same number in both coordinate spaces",
+    onChange: v => { s.slope = v; }
+  }));
+
+  const reset = document.createElement("button");
+  reset.className = "btn";
+  reset.type = "button";
+  reset.textContent = "Reset to default preset";
+  reset.onclick = () => {
+    if (free) Object.assign(state.free, { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.575 });
+    else Object.assign(state.fixed, { y1: 29, slope: 0.575 });
+    render();
+  };
+
+  const acts = document.createElement("div");
+  acts.className = "actions";
+  acts.append(reset);
+  controls.append(acts);
+}
+
+function rawEditor() {
+  const box = document.createElement("div");
+
+  const table = document.createElement("table");
+  table.innerHTML = `<thead><tr>
+      <th>Point</th><th>X (0-100)</th><th>Y (0-100)</th><th></th>
+    </tr></thead>`;
+
+  const body = document.createElement("tbody");
+
+  state.raw.points.forEach((p, i) => {
+    const tr = document.createElement("tr");
+    tr.className = "pt-row";
+
+    const name = document.createElement("td");
+    name.className = "name mono";
+    name.textContent = "p" + (i + 1);
+    tr.append(name);
+
+    for (const axis of ["x", "y"]) {
+      const td = document.createElement("td");
+      const inp = document.createElement("input");
+      inp.type = "number";
+      inp.step = "1";
+      inp.value = fmt(p[axis], 3);
+      inp.onchange = () => {
+        const v = parseFloat(inp.value);
+        if (Number.isFinite(v)) p[axis] = tidy(clamp(v, 0, 100));
+        render();
+      };
+      td.append(inp);
+      tr.append(td);
+    }
+
+    const del = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "icon-btn";
+    btn.type = "button";
+    btn.textContent = "×";
+    btn.title = "Remove point";
+    btn.disabled = state.raw.points.length <= 1;
+    btn.onclick = () => { state.raw.points.splice(i, 1); render(); };
+    del.append(btn);
+    tr.append(del);
+
+    body.append(tr);
+  });
+
+  table.append(body);
+  box.append(table);
+
+  const add = document.createElement("button");
+  add.className = "btn";
+  add.type = "button";
+  add.textContent = "+ Add point";
+  add.onclick = () => {
+    const last = state.raw.points[state.raw.points.length - 1];
+    const x = last ? clamp(last.x + 10, 0, 100) : 50;
+    state.raw.points.push({ x, y: x });
+    render();
+  };
+
+  const acts = document.createElement("div");
+  acts.className = "actions";
+  acts.append(add);
+  box.append(acts);
+  return box;
+}
+
+/* ---------- output ---------- */
+const outBody = document.getElementById("out-body");
+const warn = document.getElementById("warn");
+
+function drawOutput() {
+  outBody.textContent = "";
+  const pts = points();
+  let oob = false;
+
+  for (const p of pts) {
+    const tr = document.createElement("tr");
+    const out = p.y < 0 || p.y > 100;
+    if (out) oob = true;
+
+    const cells = [
+      ["name mono", p.name],
+      ["num mono", fmt(p.x, 3)],
+      ["num mono" + (out ? " oob" : ""), fmt(p.y, 3)],
+      ["num mono gremlin", fmt(toGremlin(p.x), 4)],
+      ["num mono " + (out ? "oob" : "gremlin"), fmt(toGremlin(p.y), 4)]
+    ];
+
+    for (const [cls, txt] of cells) {
+      const td = document.createElement("td");
+      td.className = cls;
+      td.textContent = txt;
+      tr.append(td);
+    }
+    outBody.append(tr);
+  }
+
+  warn.hidden = !oob;
+  if (oob) warn.textContent = "Y is outside 0-100 — Gremlin can't take a value beyond ±1. Lower the slope or y1.";
+}
+
+function outputText() {
+  const lines = points().map(p =>
+    `${p.name} = (${fmt(toGremlin(p.x), 4)}, ${fmt(toGremlin(p.y), 4)})` +
+    `   gremlin   ->  (${fmt(p.x, 3)}, ${fmt(p.y, 3)})   0-100`
+  );
+  if (state.tab !== "raw") {
+    const s = state.tab === "free" ? state.free : state.fixed;
+    lines.unshift(`slope ${fmt(s.slope, 2)}`);
+  }
+  return lines.join("\n");
+}
+
+const copyBtn = document.getElementById("copy-btn");
+copyBtn.onclick = async () => {
+  try {
+    await navigator.clipboard.writeText(outputText());
+  } catch {
+    return; // clipboard blocked (non-https / permissions) — silently no-op
+  }
+  const old = copyBtn.textContent;
+  copyBtn.textContent = "Copied";
+  copyBtn.classList.add("copied");
+  setTimeout(() => { copyBtn.textContent = old; copyBtn.classList.remove("copied"); }, 1200);
+};
+
+/* ---------- wiring ---------- */
+function render() {
+  drawGraph();
+  drawControls();
+  drawOutput();
+}
+
+for (const tab of document.querySelectorAll(".tab")) {
+  tab.onclick = () => {
+    state.tab = tab.dataset.tab;
+    for (const t of document.querySelectorAll(".tab")) {
+      t.setAttribute("aria-selected", String(t === tab));
+    }
+    render();
+  };
+}
+
+render();
+</script>
+</body>
+</html>
