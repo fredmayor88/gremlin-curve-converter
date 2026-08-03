@@ -1,5 +1,7 @@
 # Curve Converter → Joystick Gremlin
 
+**→ https://fredmayor88.github.io/gremlin-curve-converter/**
+
 A one-file static tool. Design a response curve in `0-100` on both axes, read out the
 `-1 … 1` numbers to type into Joystick Gremlin.
 
