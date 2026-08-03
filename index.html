@@ -568,12 +568,12 @@ function drawHover() {
   hoverLayer.append(el("circle", { class: "hov-dot", cx, cy, r: 4 }));
 
   const main = Number.isFinite(seg.slope)
-    ? `slope ${fmt(seg.slope, 3)}  ·  ${fmt(seg.slope * 100, 1)}% of 1:1`
+    ? `slope ${fmt(seg.slope, 3)}  ·  ${vsLinear(seg.slope)}`
     : "vertical segment";
-  const sub = `x ${fmt(hoverX, 1)} → y ${fmt(y, 2)}   ` +
-              `(${fmt(toGremlin(hoverX), 3)} → ${fmt(toGremlin(y), 3)})`;
+  const sub = `(${fmt(hoverX, 1)}, ${fmt(y, 2)})` +
+              `   gremlin (${fmt(toGremlin(hoverX), 3)}, ${fmt(toGremlin(y), 3)})`;
 
-  const W = 186, H = 40;
+  const W = 234, H = 40;
   const bx = cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10;
   const by = clamp(cy - H - 10, PAD + 2, SIZE - PAD - H - 2);
 
@@ -583,9 +583,7 @@ function drawHover() {
 }
 
 graph.addEventListener("pointermove", ev => {
-  if (state.tab !== "raw") return;
-  const at = eventToData(ev);
-  hoverX = at.x;
+  hoverX = eventToData(ev).x;
   drawHover();
 });
 
@@ -655,7 +653,7 @@ function applyDrag(index, at) {
 const controls = document.getElementById("controls");
 
 // `step` is the resolution (snapping + arrow keys), `bump` is what -/+ move by.
-function stepper({ label, value, step, bump = step, dp, min, max, note, tips, onChange }) {
+function stepper({ key, label, value, step, bump = step, dp, min, max, note, tips, onChange }) {
   const wrap = document.createElement("div");
   wrap.className = "ctrl";
 
@@ -674,6 +672,7 @@ function stepper({ label, value, step, bump = step, dp, min, max, note, tips, on
   input.type = "number";
   input.step = String(step);
   input.value = fmt(value, dp);
+  if (key) input.dataset.key = key; // so render() can hand focus back
 
   const plus = document.createElement("button");
   plus.type = "button";
@@ -804,9 +803,10 @@ function drawControls() {
   const free = state.tab === "free";
   const s = free ? state.free : state.fixed;
 
-  hint.textContent = free
-    ? "Drag p1 to set x1/y1, drag p2 to set x2 and the slope."
-    : "Drag p1 to set y1, drag p2 to set the slope. X is pinned.";
+  hint.textContent = (free
+    ? "Drag p1 to set x1/y1, drag p2 to set x2 and the slope. "
+    : "Drag p1 to set y1, drag p2 to set the slope. X is pinned. ")
+    + "Hover anywhere to read the slope at that point.";
 
   const lead = document.createElement("div");
   lead.className = "lead";
@@ -825,11 +825,11 @@ function drawControls() {
     row.className = "row2";
     row.append(
       stepper({
-        label: "x1 (0-100)", value: s.x1, step: 1, dp: 0, min: 0, max: s.x2 - 1,
+        key: "x1", label: "x1 (0-100)", value: s.x1, step: STEP.x, dp: 0, min: 0, max: s.x2 - 1,
         onChange: v => { s.x1 = v; }
       }),
       stepper({
-        label: "x2 (0-100)", value: s.x2, step: 1, dp: 0, min: s.x1 + 1, max: 100,
+        key: "x2", label: "x2 (0-100)", value: s.x2, step: STEP.x, dp: 0, min: s.x1 + 1, max: 100,
         onChange: v => { s.x2 = v; }
       })
     );
@@ -844,14 +844,14 @@ function drawControls() {
   }
 
   controls.append(stepper({
-    label: "y1 — dead range at the start", value: s.y1,
+    key: "y1", label: "y1 — dead range at the start", value: s.y1,
     step: STEP.y, bump: BUMP.y, dp: 1, min: 0, max: 100,
     tips: TIPS.y1,
     onChange: v => { s.y1 = v; }
   }));
 
   controls.append(stepper({
-    label: "slope — how fast it rises", value: s.slope,
+    key: "slope", label: "slope — how fast it rises", value: s.slope,
     step: STEP.slope, bump: BUMP.slope, dp: 3, min: -5, max: 5,
     tips: TIPS.slope,
     onChange: v => { s.slope = v; }
@@ -898,8 +898,9 @@ function rawEditor() {
       const td = document.createElement("td");
       const inp = document.createElement("input");
       inp.type = "number";
-      inp.step = "1";
+      inp.step = String(STEP.raw);
       inp.value = fmt(p[axis], 3);
+      inp.dataset.key = `raw-${i}-${axis}`;
       inp.onchange = () => {
         const v = parseFloat(inp.value);
         if (Number.isFinite(v)) p[axis] = tidy(clamp(v, 0, 100));
@@ -1005,10 +1006,21 @@ copyBtn.onclick = async () => {
 };
 
 /* ---------- wiring ---------- */
+// Controls are rebuilt from scratch on every change, which throws away the
+// focused input — arrow-key stepping would die after one press. Hand focus
+// back to the input with the same key.
 function render() {
+  const active = document.activeElement;
+  const focusKey = active && active.dataset ? active.dataset.key : null;
+
   drawGraph();
   drawControls();
   drawOutput();
+
+  if (focusKey) {
+    const back = controls.querySelector(`[data-key="${focusKey}"]`);
+    if (back) back.focus();
+  }
 }
 
 for (const tab of document.querySelectorAll(".tab")) {

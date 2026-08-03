@@ -17,9 +17,12 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 
 | Tab | What it does |
 | --- | --- |
-| **XY** | Add any number of points, type or drag them, get the Gremlin coordinates. Hover the graph to read the slope at that point. |
+| **XY** | Add any number of points, type or drag them, get the Gremlin coordinates. |
 | **Twitchy throttle (ACR)** | The actual job: taming the throttle in Assetto Corsa Rally. `x1 = 3`, `x2 = 90` pinned; you adjust `y1` and the slope. |
 | **Twitchy throttle — free X** | Same fix with `x1` and `x2` unpinned, for when the pinned version isn't enough. |
+
+On every tab, hovering the graph reads out the slope under the cursor, how much
+faster/slower that is than 1:1, and the point itself in both coordinate spaces.
 
 ### What the two knobs do
 
