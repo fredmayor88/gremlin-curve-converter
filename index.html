@@ -300,6 +300,11 @@
   .curve-raw { stroke: var(--oak); stroke-width: 2; fill: none; }
   .curve-fixed { stroke: var(--accent); stroke-width: 2.25; fill: none; }
   .band { fill: var(--accent); opacity: 0.06; }
+  .spin-line { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
+  .spin-label { fill: var(--warn); font-size: 10.5px; font-weight: 650; }
+  .spin-tick { stroke-width: 2.5; }
+  .tick-raw { stroke: var(--oak); }
+  .tick-fixed { stroke: var(--accent); }
 
   .stats {
     display: grid;
@@ -338,6 +343,18 @@
   .stat-nums .win { color: var(--accent); }
   .stat-nums .lose { color: var(--warn); }
   .stat-cap { font-size: 11px; color: var(--muted); line-height: 1.35; }
+
+  .inverse {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 7px 7px 0;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .inverse b { color: var(--text); font-weight: 650; }
 
   .model-table { margin-top: 14px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
   .model-table th, .model-table td { padding: 6px 12px; }
@@ -493,11 +510,12 @@
           <h3>Experiment — what this does to the car</h3>
           <p class="model-warn">
             <b>Modelled, not measured.</b> The chain is
-            <b>pedal → your Gremlin curve → the game's curve → throttle</b>, and the game's
-            curve is inferred, not read out of the game. It's the shape that reproduces the
-            result you get in the car — clean modulation to about 80% output with the
-            correction applied. So the grey line is what ACR <i>must</i> be doing for that to
-            be true, which is an argument, not a measurement.
+            <b>pedal → your curve → ACR's response → how hard the car pushes</b>. That last
+            stage is inferred from three things you can feel: nothing happens below ~30%
+            throttle output, then it climbs far too fast, and past the top of the ramp you're
+            already all-in. Past ~47% output the wheels light up, so everything above the
+            dashed line is traction management, not modulation. The grey line is what ACR
+            <i>must</i> be doing for that to be true — an argument, not a measurement.
           </p>
           <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
           <ul class="legend">
@@ -506,6 +524,7 @@
             <li><i class="sw sw-band"></i>the band you modulate in</li>
           </ul>
           <div id="model-stats" class="stats"></div>
+          <p id="model-inverse" class="inverse"></p>
           <div id="model-controls"></div>
           <table class="model-table">
             <thead>
@@ -845,22 +864,26 @@ const TIPS = {
 };
 
 /* ---------- the experiment: what the game does with what we send it ---------- */
-// A stand-in for ACR's own throttle curve: a logistic, normalised through
-// (0,0) and (1,1). Dead early, steep through the middle, tapering at the top.
+// ACR's own response: throttle output in, how hard the car pushes out.
+// Three observed facts, in order: nothing happens below ~30% output; then it
+// climbs far too fast; and by the top you're already all-in, which is why the
+// steep last stretch of the correction costs nothing.
 //
-// The defaults are not invented. They're the (steep, bite) pair that best
-// reproduces the reported result — near-linear response up to ~80% output
-// once the correction is applied. Fitted at RMS ~2%. An exponential in x³
-// was tried first and cannot produce that at any setting; it is far too flat
-// through the middle.
-const MODEL = { steep: 7.6, bite: 0.57 };
+//   push(u) = 0                          u ≤ dead
+//             ((u−dead)/(full−dead))^p   dead < u < full
+//             1                          u ≥ full
+//
+// The defaults aren't fitted, they're solved. "My correction makes it linear"
+// pins the game curve to the inverse of the correction's main stretch:
+// dead = y1 − slope·x1 = 27.3%, full = y1 + slope·(100−x1) = 84.8%.
+// `spin` is the throttle output where the car starts really picking up and
+// the wheels light up — past it you're managing traction, not modulating.
+const MODEL = { dead: 0.27, full: 0.85, shape: 1, spin: 0.47 };
 
-const sigmoid = t => 1 / (1 + Math.exp(-t));
-
-function gameCurve(x, { steep, bite }) {
-  const lo = sigmoid(-steep * bite);
-  const hi = sigmoid(steep * (1 - bite));
-  return (sigmoid(steep * (x - bite)) - lo) / (hi - lo);
+function gameCurve(u, { dead, full, shape }) {
+  if (u <= dead) return 0;
+  if (u >= full) return 1;
+  return ((u - dead) / (full - dead)) ** shape;
 }
 
 // What you'd notice from the driver's seat, for one response curve.
@@ -868,7 +891,20 @@ function gameCurve(x, { steep, bite }) {
 // 10-80% output stretch, i.e. everything short of flat out.
 const BAND = [0.10, 0.80];
 
-function feelStats(response) {
+// How much pedal travel sits between two throttle-output levels.
+function travelBetween(outputOf, loOut, hiOut) {
+  const N = 1000;
+  let lo = null, hi = null;
+  for (let i = 0; i <= N; i++) {
+    const x = i / N;
+    const out = outputOf(x);
+    if (lo === null && out >= loOut) lo = x;
+    if (hi === null && out >= hiOut) hi = x;
+  }
+  return ((hi ?? 1) - (lo ?? 1)) * 100;
+}
+
+function feelStats(response, outputOf) {
   const N = 1000;
   let dead = null, bandLo = null, bandHi = null, worst = 0;
 
@@ -882,11 +918,15 @@ function feelStats(response) {
     if (y >= BAND[0] && y <= BAND[1]) worst = Math.max(worst, (y - response((i - 1) / N)) * N);
   }
 
-  if (bandLo === null) return { dead: 100, zone: 0, worst: 0 }; // never gets there
+  // The window you actually drive in: past the dead zone, short of wheelspin.
+  const usable = travelBetween(outputOf, MODEL.dead, MODEL.spin);
+
+  if (bandLo === null) return { dead: 100, zone: 0, worst: 0, usable };
   return {
     dead: (dead ?? 1) * 100,
     zone: ((bandHi ?? 1) - bandLo) * 100,
-    worst: worst * 10 // throttle % per 10% of pedal travel
+    worst: worst * 10, // throttle % per 10% of pedal travel
+    usable
   };
 }
 
@@ -929,7 +969,22 @@ function drawModel() {
   modelGraph.append(el("polyline", { class: "curve-raw", points: raw.join(" ") }));
   modelGraph.append(el("polyline", { class: "curve-fixed", points: fixed.join(" ") }));
 
-  drawStats(feelStats(rawAt), feelStats(fixedAt));
+  // where the wheels light up, and where each curve crosses it
+  const spinY = gameCurve(MODEL.spin, MODEL) * 100;
+  modelGraph.append(el("line", {
+    class: "spin-line", x1: px(0), y1: py(spinY), x2: px(100), y2: py(spinY)
+  }));
+  modelGraph.append(el("text",
+    { class: "spin-label", x: px(100), y: py(spinY) - 6, "text-anchor": "end" }, "wheelspin"));
+
+  for (const [outputOf, cls] of [[x => x, "tick-raw"], [correction, "tick-fixed"]]) {
+    const at = travelBetween(outputOf, 0, MODEL.spin);
+    modelGraph.append(el("line", {
+      class: `spin-tick ${cls}`, x1: px(at), y1: py(spinY) - 7, x2: px(at), y2: py(spinY) + 7
+    }));
+  }
+
+  drawStats(feelStats(rawAt, x => x), feelStats(fixedAt, correction));
 
   modelBody.textContent = "";
   for (const pedal of [10, 25, 50, 75, 90]) {
@@ -948,38 +1003,75 @@ function drawModel() {
     modelBody.append(tr);
   }
 
+  drawInverse();
+
   modelControls.textContent = "";
   const row = document.createElement("div");
   row.className = "row2";
   row.append(
     stepper({
-      key: "steep", label: "model: steepness", value: MODEL.steep,
-      step: 0.1, dp: 1, min: 2, max: 20,
-      onChange: v => { MODEL.steep = v; }
+      key: "dead", label: "model: dead until", value: MODEL.dead * 100,
+      step: 1, dp: 0, min: 0, max: 60,
+      onChange: v => { MODEL.dead = tidy(v / 100); }
     }),
     stepper({
-      key: "bite", label: "model: bite point", value: MODEL.bite,
-      step: 0.01, dp: 2, min: 0.1, max: 0.9,
-      onChange: v => { MODEL.bite = v; }
+      key: "full", label: "model: all-in from", value: MODEL.full * 100,
+      step: 1, dp: 0, min: 40, max: 100,
+      onChange: v => { MODEL.full = tidy(Math.max(v, MODEL.dead * 100 + 5) / 100); }
     })
   );
   modelControls.append(row);
 
+  const row2 = document.createElement("div");
+  row2.className = "row2";
+  row2.append(
+    stepper({
+      key: "spin", label: "model: wheels spin from", value: MODEL.spin * 100,
+      step: 1, dp: 0, min: 20, max: 100,
+      onChange: v => { MODEL.spin = tidy(v / 100); }
+    }),
+    stepper({
+      key: "shape", label: "model: ramp shape", value: MODEL.shape,
+      step: 0.05, dp: 2, min: 0.6, max: 2,
+      onChange: v => { MODEL.shape = v; }
+    })
+  );
+  modelControls.append(row2);
+
   const note = document.createElement("p");
   note.className = "step-note";
-  note.textContent = "These two only move the model, never your curve. " +
-                     "Defaults are fitted to the response you reported feeling.";
+  note.textContent = "Shape 1.00 is a straight ramp, above that is the slightly-exponential " +
+                     "version. All four move the model only, never your curve.";
   modelControls.append(note);
+}
+
+// The punchline: a correction that flattens this curve has to be its inverse.
+function drawInverse() {
+  const box = document.getElementById("model-inverse");
+  const ramp = 1 / (MODEL.full - MODEL.dead);
+  const ideal = MODEL.full - MODEL.dead;
+  const mine = state.fixed.slope;
+  const off = Math.abs(mine - ideal);
+
+  box.innerHTML =
+    `The modelled ramp climbs at <b>${fmt(ramp, 2)}×</b>. Cancelling it exactly needs a ` +
+    `slope of <b>${fmt(ideal, 3)}</b> — you're running <b>${fmt(mine, 3)}</b>` +
+    (off < 0.02
+      ? `. That's why the corrected line comes out straight: your curve is the inverse of the game's.`
+      : `, which is ${fmt(off, 3)} off. Move toward ${fmt(ideal, 3)} to flatten the response further.`) +
+    ` Its dead zone ends at <b>${fmt(MODEL.dead * 100, 0)}%</b> output, which is what y1 is jumping over.`;
 }
 
 /* ---------- the three things you'd notice ---------- */
 const STAT_DEFS = [
+  { key: "usable", label: "Usable window", unit: "%", better: "higher",
+    caption: "of the stroke between moving off and wheelspin" },
   { key: "dead", label: "Dead travel", unit: "%", better: "lower",
     caption: "of the stroke before anything happens" },
   { key: "zone", label: "Modulation room", unit: "%", better: "higher",
-    caption: "of the stroke covers 10-80% throttle" },
+    caption: "of the stroke covers 10-80% push" },
   { key: "worst", label: "Worst spike", unit: "%", better: "lower",
-    caption: "throttle per 10% pedal, inside that band" }
+    caption: "push per 10% pedal, inside that band" }
 ];
 
 function drawStats(raw, fixed) {
@@ -1337,7 +1429,8 @@ function hashFor(tab) {
   if (tab === "fixed") {
     const s = state.fixed;
     return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}` +
-           `&steep=${fmt(MODEL.steep, 1)}&bite=${fmt(MODEL.bite, 2)}`;
+           `&dead=${fmt(MODEL.dead * 100, 0)}&full=${fmt(MODEL.full * 100, 0)}` +
+           `&spin=${fmt(MODEL.spin * 100, 0)}&shape=${fmt(MODEL.shape, 2)}`;
   }
   const s = state.free;
   return `#${SLUG.free}?x1=${fmt(s.x1, 0)}&y1=${fmt(s.y1, 1)}` +
@@ -1380,11 +1473,17 @@ function applyParams(tab, q) {
   const slope = num("slope");
   if (slope !== null) s.slope = clamp(tidy(snap(slope, STEP.slope)), -5, 5);
 
-  const steep = num("steep");
-  if (steep !== null) MODEL.steep = clamp(tidy(snap(steep, 0.1)), 2, 20);
+  const dead = num("dead");
+  if (dead !== null) MODEL.dead = clamp(tidy(snap(dead, 1)), 0, 60) / 100;
 
-  const bite = num("bite");
-  if (bite !== null) MODEL.bite = clamp(tidy(snap(bite, 0.01)), 0.1, 0.9);
+  const full = num("full");
+  if (full !== null) MODEL.full = clamp(tidy(snap(full, 1)), MODEL.dead * 100 + 5, 100) / 100;
+
+  const spin = num("spin");
+  if (spin !== null) MODEL.spin = clamp(tidy(snap(spin, 1)), 20, 100) / 100;
+
+  const shape = num("shape");
+  if (shape !== null) MODEL.shape = clamp(tidy(snap(shape, 0.05)), 0.6, 2);
 }
 
 // Debounced: dragging would otherwise write history on every pointer move,

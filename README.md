@@ -78,28 +78,44 @@ game has had its turn. The signal chain is:
 pedal travel → your Gremlin curve → the game's own curve → throttle
 ```
 
-The game's own curve is **inferred, not measured** — a normalised logistic:
+ACR's stage is **inferred, not measured**: throttle output in, how hard the car pushes out.
 
 ```
-f(x) = (σ(s·(x − b)) − σ(−s·b)) / (σ(s·(1 − b)) − σ(−s·b))      σ(t) = 1/(1 + e^-t)
+push(u) = 0                          u ≤ dead
+          ((u−dead)/(full−dead))^p   dead < u < full
+          1                          u ≥ full
 ```
 
-The defaults `s = 7.6`, `b = 0.57` aren't invented: they're the pair that best reproduces
-the actual result in the car — clean modulation up to ~80% output once the correction is
-applied — fitted at RMS ≈ 2%. So the grey line is what ACR *must* be doing for that to be
-true. An exponential in `x³` was tried first and can't produce that response at any
-setting; it's far too flat through the middle.
+Three things you can feel pin it down: nothing happens below ~30% output, then it climbs
+far too fast, and past the top of the ramp you're already all-in. The defaults aren't
+fitted — they're **solved**. "My correction makes the response linear" forces the game's
+curve to be the inverse of the correction's main stretch:
 
-Both parameters are adjustable and affect only the model, never your curve.
+```
+dead = y1 − slope·x1        = 27.3%
+full = y1 + slope·(100−x1)  = 84.8%
+```
+
+Which produces the punchline: the modelled ramp climbs at **1.72×**, and cancelling that
+exactly needs a slope of **0.58**. The curve in use runs **0.575**. The correction is the
+game's own curve, inverted — that's why it feels linear, and it's why the last steep stretch
+costs nothing (the car is already at full push by 85% output).
+
+A fourth parameter, `spin`, marks where the wheels light up — about 47% throttle output.
+Above that line you're managing traction, not modulating, so the pedal travel *below* it is
+the part that matters.
+
+All four parameters are adjustable and affect only the model, never your curve.
 
 Two lines share the axes: pedal straight into the game, and pedal through your curve first.
-Three tiles report what you'd notice from the seat, before → after:
+Four tiles report what you'd notice from the seat, before → after:
 
-| | Straight in | Through your curve |
-| --- | --- | --- |
-| Dead travel (under 5% throttle) | 21% | **2.2%** |
-| Stroke covering 10-80% throttle | 43.9% | **76.4%** |
-| Steepest run inside that band | 20% | **11.5%** per 10% pedal |
+| | Straight in | Through your curve | |
+| --- | --- | --- | --- |
+| Stroke between moving off and wheelspin | 20% | **31.6%** | 1.6× |
+| Dead travel (under 5% push) | 30% | **4.6%** | 0.15× |
+| Stroke covering 10-80% push | 40.6% | **70.6%** | 1.7× |
+| Steepest run inside that band | 17.2% | **9.9%** per 10% pedal | 0.58× |
 
 ## Running it
 
