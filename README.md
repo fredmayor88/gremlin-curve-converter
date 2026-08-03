@@ -17,7 +17,7 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 
 | Tab | What it does |
 | --- | --- |
-| **Raw** | Add any number of points, type or drag them, get the Gremlin coordinates. |
+| **XY** | Add any number of points, type or drag them, get the Gremlin coordinates. Hover the graph to read the slope at that point. |
 | **Twitchy throttle (ACR)** | The actual job: taming the throttle in Assetto Corsa Rally. `x1 = 3`, `x2 = 90` pinned; you adjust `y1` and the slope. |
 | **Twitchy throttle — free X** | Same fix with `x1` and `x2` unpinned, for when the pinned version isn't enough. |
 
@@ -27,15 +27,21 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 
 - up → **less** dead range, the throttle bites sooner
 - down → **more** dead range, more travel before anything happens
-- steps of 1 in the `0-100` space
+- resolution 0.5 in the `0-100` space
 
 **`slope` — how fast the curve rises after the bite point**
 
 - higher → rises **faster**, throttle comes in harder
 - lower → rises **slower**, gentler and easier to modulate (the twitch fix)
-- steps of 0.01
+- resolution 0.001; the `−`/`+` buttons nudge by 0.01
 
-Both step sizes are enforced by the UI — buttons, arrow keys and dragging all snap.
+Resolution is enforced everywhere — dragging, typing and arrow keys all snap to it.
+
+The tab also reports the curve **against a 1:1 linear response**: the default `0.575`
+reads as *57.5% of 1:1 — 42.5% slower* over the main stretch, with the steep lead-in and
+the top-end segment listed separately (they aren't 57.5%, and pretending otherwise would
+be misleading).
+
 Default preset is `y1 = 29`, `slope = 0.575`, which lands on:
 
 ```

@@ -224,6 +224,57 @@
   .lead h2 { margin: 0 0 5px; font-size: 13.5px; font-weight: 650; }
   .lead p { margin: 0; color: var(--muted); font-size: 13px; }
 
+  .rate {
+    margin: 16px 0 0;
+    padding: 13px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+  }
+
+  .rate-big {
+    font-size: 27px;
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+
+  .rate-big span {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+
+  .rate-sub { margin: 5px 0 0; font-size: 12.5px; color: var(--muted); }
+  .rate-sub b { color: var(--text); }
+
+  .rate-segs {
+    list-style: none;
+    margin: 11px 0 0;
+    padding: 9px 0 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .rate-segs li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+    margin: 3px 0;
+  }
+
+  .rate-segs .mono { font-size: 12.5px; color: var(--text); }
+
+  /* hover readout on the XY graph */
+  .hov-line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.7; }
+  .hov-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
+  .hov-box { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+  .hov-main { fill: var(--text); font-size: 11.5px; font-weight: 650; }
+  .hov-sub { fill: var(--muted); font-size: 11px; }
+
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* ---- output ---- */
@@ -346,7 +397,7 @@
   </header>
 
   <div class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-raw"   aria-selected="false" data-tab="raw">Raw</button>
+    <button class="tab" role="tab" id="tab-raw"   aria-selected="false" data-tab="raw">XY</button>
     <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">Twitchy throttle (ACR)</button>
     <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">Twitchy throttle — free X</button>
   </div>
@@ -491,7 +542,57 @@ function drawGraph() {
     hit.addEventListener("pointerdown", ev => startDrag(ev, i));
     graph.append(hit);
   });
+
+  hoverLayer = el("g", { "pointer-events": "none" });
+  graph.append(hoverLayer);
+  if (hoverX !== null) drawHover();
 }
+
+/* ---------- hover readout (XY tab) ---------- */
+let hoverLayer = null;
+let hoverX = null;
+
+function drawHover() {
+  if (!hoverLayer) return;
+  hoverLayer.textContent = "";
+  if (hoverX === null) return;
+
+  const segs = segments(points());
+  const seg = segs.find(s => hoverX >= s.from && hoverX <= s.to);
+  if (!seg) return;
+
+  const y = Number.isFinite(seg.slope) ? seg.yFrom + seg.slope * (hoverX - seg.from) : seg.yTo;
+  const cx = px(hoverX), cy = py(clamp(y, 0, 100));
+
+  hoverLayer.append(el("line", { class: "hov-line", x1: cx, y1: py(0), x2: cx, y2: cy }));
+  hoverLayer.append(el("circle", { class: "hov-dot", cx, cy, r: 4 }));
+
+  const main = Number.isFinite(seg.slope)
+    ? `slope ${fmt(seg.slope, 3)}  ·  ${fmt(seg.slope * 100, 1)}% of 1:1`
+    : "vertical segment";
+  const sub = `x ${fmt(hoverX, 1)} → y ${fmt(y, 2)}   ` +
+              `(${fmt(toGremlin(hoverX), 3)} → ${fmt(toGremlin(y), 3)})`;
+
+  const W = 186, H = 40;
+  const bx = cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10;
+  const by = clamp(cy - H - 10, PAD + 2, SIZE - PAD - H - 2);
+
+  hoverLayer.append(el("rect", { class: "hov-box", x: bx, y: by, width: W, height: H, rx: 6 }));
+  hoverLayer.append(el("text", { class: "hov-main", x: bx + 9, y: by + 17 }, main));
+  hoverLayer.append(el("text", { class: "hov-sub", x: bx + 9, y: by + 31 }, sub));
+}
+
+graph.addEventListener("pointermove", ev => {
+  if (state.tab !== "raw") return;
+  const at = eventToData(ev);
+  hoverX = at.x;
+  drawHover();
+});
+
+graph.addEventListener("pointerleave", () => {
+  hoverX = null;
+  drawHover();
+});
 
 /* ---------- dragging ---------- */
 function eventToData(ev) {
@@ -522,12 +623,16 @@ function startDrag(ev, index) {
   move(ev);
 }
 
-// Y always snaps to 1; slope always snaps to 0.01.
+// Resolution of each knob, everywhere: dragging, typing, arrow keys.
+// The -/+ buttons nudge by BUMP instead, which is coarser for the slope.
+const STEP = { y: 0.5, slope: 0.001, x: 1, raw: 1 };
+const BUMP = { y: 0.5, slope: 0.01, x: 1 };
+
 function applyDrag(index, at) {
   if (state.tab === "raw") {
     const p = state.raw.points[index];
-    p.x = snap(at.x, 1);
-    p.y = snap(at.y, 1);
+    p.x = snap(at.x, STEP.raw);
+    p.y = snap(at.y, STEP.raw);
     return;
   }
 
@@ -536,20 +641,21 @@ function applyDrag(index, at) {
   const x2 = free ? s.x2 : FIXED_X2;
 
   if (index === 0) {
-    s.y1 = snap(at.y, 1);
-    if (free) s.x1 = clamp(snap(at.x, 1), 0, x2 - 1);
+    s.y1 = tidy(snap(at.y, STEP.y));
+    if (free) s.x1 = clamp(snap(at.x, STEP.x), 0, x2 - 1);
   } else {
     // p2's Y is not stored — it drives the slope
-    if (free) s.x2 = clamp(snap(at.x, 1), s.x1 + 1, 100);
+    if (free) s.x2 = clamp(snap(at.x, STEP.x), s.x1 + 1, 100);
     const dx = (free ? s.x2 : FIXED_X2) - (free ? s.x1 : FIXED_X1);
-    s.slope = tidy(clamp(snap((at.y - s.y1) / dx, 0.01), -5, 5));
+    s.slope = tidy(clamp(snap((at.y - s.y1) / dx, STEP.slope), -5, 5));
   }
 }
 
 /* ---------- controls ---------- */
 const controls = document.getElementById("controls");
 
-function stepper({ label, value, step, dp, min, max, note, tips, onChange }) {
+// `step` is the resolution (snapping + arrow keys), `bump` is what -/+ move by.
+function stepper({ label, value, step, bump = step, dp, min, max, note, tips, onChange }) {
   const wrap = document.createElement("div");
   wrap.className = "ctrl";
 
@@ -575,8 +681,8 @@ function stepper({ label, value, step, dp, min, max, note, tips, onChange }) {
 
   const set = v => onChange(tidy(clamp(snap(v, step), min, max)));
 
-  minus.onclick = () => { set(value - step); render(); };
-  plus.onclick = () => { set(value + step); render(); };
+  minus.onclick = () => { set(value - bump); render(); };
+  plus.onclick = () => { set(value + bump); render(); };
   input.onchange = () => {
     const v = parseFloat(input.value);
     if (Number.isFinite(v)) set(v);
@@ -612,21 +718,85 @@ const TIPS = {
   y1: [
     "Move <b>up</b> → <b>less</b> dead range at the start of the pedal stroke. The throttle bites sooner.",
     "Move <b>down</b> → <b>more</b> dead range at the start. More travel before anything happens.",
-    "Go in small increments — 1 in the 0-100 space. The buttons, arrow keys and dragging all step by 1."
+    "Go in small increments — <b>0.5</b> in the 0-100 space. Buttons, arrow keys and dragging all snap to it."
   ],
   slope: [
     "<b>Higher</b> → the curve rises <b>faster</b>. Throttle comes in harder after the bite point.",
     "<b>Lower</b> → the curve rises <b>slower</b>. Gentler, more room to modulate — this is the twitch fix.",
-    "Small increments here too: 0.01 per step. Same number in Gremlin as in 0-100."
+    "Resolution is <b>0.001</b> (dragging, typing, arrow keys). The −/+ buttons nudge by 0.01."
   ]
 };
+
+/* ---------- rate vs. a 1:1 linear response ---------- */
+// Every segment of the curve, including the two Gremlin owns.
+function segments(pts) {
+  const chain = [{ x: 0, y: 0 }, ...[...pts].sort((a, b) => a.x - b.x), { x: 100, y: 100 }];
+  const out = [];
+  for (let i = 0; i < chain.length - 1; i++) {
+    const dx = chain[i + 1].x - chain[i].x;
+    out.push({
+      from: chain[i].x,
+      to: chain[i + 1].x,
+      yFrom: chain[i].y,
+      yTo: chain[i + 1].y,
+      slope: dx === 0 ? Infinity : (chain[i + 1].y - chain[i].y) / dx
+    });
+  }
+  return out;
+}
+
+// slope 1 is 1:1. 0.575 -> "57.5% of 1:1", i.e. 42.5% slower.
+function vsLinear(slope) {
+  const d = (slope - 1) * 100;
+  if (!Number.isFinite(slope)) return "vertical";
+  if (Math.abs(d) < 0.05) return "same as 1:1";
+  return `${fmt(Math.abs(d), 1)}% ${d < 0 ? "slower" : "faster"} than 1:1`;
+}
+
+function rateCard() {
+  const pts = points();
+  const segs = segments(pts);
+  const main = segs[1]; // between p1 and p2 — the stretch you actually drive on
+
+  const card = document.createElement("div");
+  card.className = "rate";
+
+  const big = document.createElement("div");
+  big.className = "rate-big";
+  big.innerHTML = `${fmt(main.slope * 100, 1)}%<span> of 1:1</span>`;
+  card.append(big);
+
+  const sub = document.createElement("p");
+  sub.className = "rate-sub";
+  sub.innerHTML = `<b>${vsLinear(main.slope)}</b> over the main stretch ` +
+                  `(${fmt(main.from, 1)} → ${fmt(main.to, 1)}), where most of the driving happens.`;
+  card.append(sub);
+
+  const ul = document.createElement("ul");
+  ul.className = "rate-segs";
+  for (const [seg, label] of [[segs[0], "lead-in"], [segs[2], "top end"]]) {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="name">${label} ${fmt(seg.from, 1)} → ${fmt(seg.to, 1)}</span>` +
+                   `<span class="mono">${fmt(seg.slope * 100, 0)}% of 1:1</span>`;
+    ul.append(li);
+  }
+  card.append(ul);
+
+  const foot = document.createElement("p");
+  foot.className = "step-note";
+  foot.textContent = "The lead-in is steep on purpose — that's the bit compensating for the dead range.";
+  card.append(foot);
+
+  return card;
+}
 
 function drawControls() {
   controls.textContent = "";
   const hint = document.getElementById("graph-hint");
 
   if (state.tab === "raw") {
-    hint.textContent = "Drag any point (snaps to 1). Points are sorted by X for the curve.";
+    hint.textContent = "Hover anywhere on the graph to read the slope at that point. " +
+                       "Drag points to move them (snaps to 1); they sort by X.";
     controls.append(rawEditor());
     return;
   }
@@ -674,16 +844,20 @@ function drawControls() {
   }
 
   controls.append(stepper({
-    label: "y1 — dead range at the start", value: s.y1, step: 1, dp: 0, min: 0, max: 100,
+    label: "y1 — dead range at the start", value: s.y1,
+    step: STEP.y, bump: BUMP.y, dp: 1, min: 0, max: 100,
     tips: TIPS.y1,
     onChange: v => { s.y1 = v; }
   }));
 
   controls.append(stepper({
-    label: "slope — how fast it rises", value: s.slope, step: 0.01, dp: 2, min: -5, max: 5,
+    label: "slope — how fast it rises", value: s.slope,
+    step: STEP.slope, bump: BUMP.slope, dp: 3, min: -5, max: 5,
     tips: TIPS.slope,
     onChange: v => { s.slope = v; }
   }));
+
+  controls.append(rateCard());
 
   const reset = document.createElement("button");
   reset.className = "btn";
@@ -812,7 +986,7 @@ function outputText() {
   );
   if (state.tab !== "raw") {
     const s = state.tab === "free" ? state.free : state.fixed;
-    lines.unshift(`slope ${fmt(s.slope, 2)}`);
+    lines.unshift(`slope ${fmt(s.slope, 3)}  (${fmt(s.slope * 100, 1)}% of 1:1 — ${vsLinear(s.slope)})`);
   }
   return lines.join("\n");
 }
