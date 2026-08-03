@@ -24,11 +24,19 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 On every tab, hovering the graph reads out the slope under the cursor, how much
 faster/slower that is than 1:1, and the point itself in both coordinate spaces.
 
-Each tab has its own link:
+### Links carry the curve
 
-- [`#xy`](https://fredmayor88.github.io/gremlin-curve-converter/#xy)
-- [`#twitchy`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy)
-- [`#twitchy-free`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy-free)
+The URL holds the whole setting, not just the tab, so a link reproduces exactly what you
+were looking at. **Copy link** in the output header gives you the current one.
+
+| Tab | Link |
+| --- | --- |
+| XY | [`#xy?p=3,29;90,79`](https://fredmayor88.github.io/gremlin-curve-converter/#xy?p=3,29;90,79) |
+| Twitchy throttle | [`#twitchy?y1=29&slope=0.575`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy?y1=29&slope=0.575) |
+| Free X | [`#twitchy-free?x1=3&y1=29&x2=90&slope=0.575`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy-free?x1=3&y1=29&x2=90&slope=0.575) |
+
+Values from a URL go through the same snapping and clamping as typed input, so a malformed
+or out-of-range link falls back to something legal instead of drawing a broken curve.
 
 ### What the two knobs do
 

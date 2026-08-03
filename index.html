@@ -295,6 +295,9 @@
     border-bottom: 1px solid var(--line);
   }
 
+  .out-btns { display: flex; gap: 6px; }
+  .out-btns .btn { padding: 6px 10px; font-size: 13px; }
+
   .out-head h2 {
     margin: 0;
     font-size: 12px;
@@ -413,7 +416,10 @@
         <div class="out">
           <div class="out-head">
             <h2>Gremlin values</h2>
-            <button class="btn" id="copy-btn" type="button">Copy</button>
+            <div class="out-btns">
+              <button class="btn" id="link-btn" type="button" title="URL with this exact curve in it">Copy link</button>
+              <button class="btn" id="copy-btn" type="button">Copy values</button>
+            </div>
           </div>
           <table>
             <thead>
@@ -1010,17 +1016,25 @@ function outputText() {
   return lines.join("\n");
 }
 
-const copyBtn = document.getElementById("copy-btn");
-copyBtn.onclick = async () => {
+async function copyTo(btn, text) {
   try {
-    await navigator.clipboard.writeText(outputText());
+    await navigator.clipboard.writeText(text);
   } catch {
     return; // clipboard blocked (non-https / permissions) — silently no-op
   }
-  const old = copyBtn.textContent;
-  copyBtn.textContent = "Copied";
-  copyBtn.classList.add("copied");
-  setTimeout(() => { copyBtn.textContent = old; copyBtn.classList.remove("copied"); }, 1200);
+  const old = btn.textContent;
+  btn.textContent = "Copied";
+  btn.classList.add("copied");
+  setTimeout(() => { btn.textContent = old; btn.classList.remove("copied"); }, 1200);
+}
+
+const copyBtn = document.getElementById("copy-btn");
+copyBtn.onclick = () => copyTo(copyBtn, outputText());
+
+const linkBtn = document.getElementById("link-btn");
+linkBtn.onclick = () => {
+  // The debounce may not have fired yet, so build the URL rather than read it.
+  copyTo(linkBtn, location.origin + location.pathname + hashFor(state.tab));
 };
 
 /* ---------- wiring ---------- */
@@ -1034,6 +1048,7 @@ function render() {
   drawGraph();
   drawControls();
   drawOutput();
+  syncUrl();
 
   if (focusKey) {
     const back = controls.querySelector(`[data-key="${focusKey}"]`);
@@ -1042,9 +1057,73 @@ function render() {
 }
 
 /* ---------- routing ---------- */
-// Each tab is linkable: #xy, #twitchy, #twitchy-free.
+// The whole curve lives in the URL, so a link carries the settings, not just
+// the tab:  #twitchy?y1=29&slope=0.575  ·  #xy?p=3,29;90,79
 const SLUG = { raw: "xy", fixed: "twitchy", free: "twitchy-free" };
 const TAB_OF = Object.fromEntries(Object.entries(SLUG).map(([tab, slug]) => [slug, tab]));
+
+function hashFor(tab) {
+  if (tab === "raw") {
+    const p = state.raw.points.map(pt => `${fmt(pt.x, 3)},${fmt(pt.y, 3)}`).join(";");
+    return `#${SLUG.raw}?p=${p}`;
+  }
+  if (tab === "fixed") {
+    const s = state.fixed;
+    return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}`;
+  }
+  const s = state.free;
+  return `#${SLUG.free}?x1=${fmt(s.x1, 0)}&y1=${fmt(s.y1, 1)}` +
+         `&x2=${fmt(s.x2, 0)}&slope=${fmt(s.slope, 3)}`;
+}
+
+function parseHash() {
+  const [slug, query = ""] = location.hash.slice(1).split("?");
+  const tab = TAB_OF[slug];
+  return tab ? { tab, q: new URLSearchParams(query) } : null;
+}
+
+// Anything from a URL is untrusted: snap and clamp it exactly like typed input.
+function applyParams(tab, q) {
+  const num = k => {
+    const v = parseFloat(q.get(k));
+    return Number.isFinite(v) ? v : null;
+  };
+
+  if (tab === "raw") {
+    const pts = (q.get("p") || "").split(";")
+      .map(pair => pair.split(",").map(Number))
+      .filter(a => a.length === 2 && a.every(Number.isFinite))
+      .map(([x, y]) => ({ x: clamp(tidy(x), 0, 100), y: clamp(tidy(y), 0, 100) }));
+    if (pts.length) state.raw.points = pts;
+    return;
+  }
+
+  const s = tab === "free" ? state.free : state.fixed;
+
+  if (tab === "free") {
+    const x2 = num("x2"), x1 = num("x1"); // x2 first, x1 is clamped against it
+    if (x2 !== null) s.x2 = clamp(snap(x2, STEP.x), 1, 100);
+    if (x1 !== null) s.x1 = clamp(snap(x1, STEP.x), 0, s.x2 - 1);
+  }
+
+  const y1 = num("y1");
+  if (y1 !== null) s.y1 = clamp(tidy(snap(y1, STEP.y)), 0, 100);
+
+  const slope = num("slope");
+  if (slope !== null) s.slope = clamp(tidy(snap(slope, STEP.slope)), -5, 5);
+}
+
+// Debounced: dragging would otherwise write history on every pointer move,
+// and Safari rate-limits replaceState.
+let urlTimer = null;
+function syncUrl() {
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(() => {
+    const next = hashFor(state.tab);
+    if (next === location.hash) return;
+    try { history.replaceState(null, "", next); } catch { /* rate-limited */ }
+  }, 120);
+}
 
 function selectTab(tab) {
   state.tab = tab;
@@ -1057,17 +1136,19 @@ function selectTab(tab) {
 for (const tab of document.querySelectorAll(".tab")) {
   // Setting the hash fires hashchange, which does the actual switching —
   // that keeps clicks and pasted links on one path, and back/forward works.
-  tab.onclick = () => { location.hash = SLUG[tab.dataset.tab]; };
+  tab.onclick = () => { location.hash = hashFor(tab.dataset.tab); };
 }
 
 window.addEventListener("hashchange", () => {
-  const tab = TAB_OF[location.hash.slice(1)];
-  if (tab && tab !== state.tab) selectTab(tab);
+  const parsed = parseHash();
+  if (!parsed) return;
+  applyParams(parsed.tab, parsed.q);
+  selectTab(parsed.tab);
 });
 
-const fromUrl = TAB_OF[location.hash.slice(1)];
-if (!fromUrl) history.replaceState(null, "", "#" + SLUG[state.tab]); // no history entry on load
-selectTab(fromUrl || state.tab);
+const onLoad = parseHash();
+if (onLoad) applyParams(onLoad.tab, onLoad.q);
+selectTab(onLoad ? onLoad.tab : state.tab); // render() writes the canonical hash back
 </script>
 </body>
 </html>
