@@ -18,11 +18,25 @@ Because both axes scale by the same factor, **a slope is the same number in eith
 | Tab | What it does |
 | --- | --- |
 | **Raw** | Add any number of points, type or drag them, get the Gremlin coordinates. |
-| **Two-point (fixed X)** | `x1 = 3`, `x2 = 90` pinned. Adjust `y1` and the slope. |
-| **Two-point (free X)** | Same, but `x1` and `x2` move too. |
+| **Twitchy throttle (ACR)** | The actual job: taming the throttle in Assetto Corsa Rally. `x1 = 3`, `x2 = 90` pinned; you adjust `y1` and the slope. |
+| **Twitchy throttle — free X** | Same fix with `x1` and `x2` unpinned, for when the pinned version isn't enough. |
 
-Y steps by 1, slope steps by 0.01 — with the `−`/`+` buttons, by typing, or by dragging the
-points on the graph. Default preset is `y1 = 29`, `slope = 0.575`, which lands on:
+### What the two knobs do
+
+**`y1` — dead range at the start of the pedal stroke**
+
+- up → **less** dead range, the throttle bites sooner
+- down → **more** dead range, more travel before anything happens
+- steps of 1 in the `0-100` space
+
+**`slope` — how fast the curve rises after the bite point**
+
+- higher → rises **faster**, throttle comes in harder
+- lower → rises **slower**, gentler and easier to modulate (the twitch fix)
+- steps of 0.01
+
+Both step sizes are enforced by the UI — buttons, arrow keys and dragging all snap.
+Default preset is `y1 = 29`, `slope = 0.575`, which lands on:
 
 ```
 p1 = (-0.94, -0.42)   gremlin  ->  (3, 29)        0-100

@@ -201,6 +201,29 @@
 
   .step-note { color: var(--muted); font-size: 11.5px; margin: 4px 0 0; }
 
+  .tip {
+    margin: 8px 0 0;
+    padding: 9px 12px;
+    background: var(--bg);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 7px 7px 0;
+  }
+
+  .tip ul { margin: 0; padding-left: 16px; }
+  .tip li { font-size: 12.5px; color: var(--muted); margin: 3px 0; }
+  .tip li b { color: var(--text); font-weight: 650; }
+
+  .lead {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+  }
+
+  .lead h2 { margin: 0 0 5px; font-size: 13.5px; font-weight: 650; }
+  .lead p { margin: 0; color: var(--muted); font-size: 13px; }
+
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
   /* ---- output ---- */
@@ -324,8 +347,8 @@
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-raw"   aria-selected="false" data-tab="raw">Raw</button>
-    <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">Two-point (fixed X)</button>
-    <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">Two-point (free X)</button>
+    <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">Twitchy throttle (ACR)</button>
+    <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">Twitchy throttle — free X</button>
   </div>
 
   <div class="panel">
@@ -526,7 +549,7 @@ function applyDrag(index, at) {
 /* ---------- controls ---------- */
 const controls = document.getElementById("controls");
 
-function stepper({ label, value, step, dp, min, max, note, onChange }) {
+function stepper({ label, value, step, dp, min, max, note, tips, onChange }) {
   const wrap = document.createElement("div");
   wrap.className = "ctrl";
 
@@ -569,8 +592,34 @@ function stepper({ label, value, step, dp, min, max, note, onChange }) {
     n.textContent = note;
     wrap.append(n);
   }
+
+  if (tips) {
+    const box = document.createElement("div");
+    box.className = "tip";
+    const ul = document.createElement("ul");
+    for (const t of tips) {
+      const li = document.createElement("li");
+      li.innerHTML = t; // authored here, not user input
+      ul.append(li);
+    }
+    box.append(ul);
+    wrap.append(box);
+  }
   return wrap;
 }
+
+const TIPS = {
+  y1: [
+    "Move <b>up</b> → <b>less</b> dead range at the start of the pedal stroke. The throttle bites sooner.",
+    "Move <b>down</b> → <b>more</b> dead range at the start. More travel before anything happens.",
+    "Go in small increments — 1 in the 0-100 space. The buttons, arrow keys and dragging all step by 1."
+  ],
+  slope: [
+    "<b>Higher</b> → the curve rises <b>faster</b>. Throttle comes in harder after the bite point.",
+    "<b>Lower</b> → the curve rises <b>slower</b>. Gentler, more room to modulate — this is the twitch fix.",
+    "Small increments here too: 0.01 per step. Same number in Gremlin as in 0-100."
+  ]
+};
 
 function drawControls() {
   controls.textContent = "";
@@ -588,6 +637,18 @@ function drawControls() {
   hint.textContent = free
     ? "Drag p1 to set x1/y1, drag p2 to set x2 and the slope."
     : "Drag p1 to set y1, drag p2 to set the slope. X is pinned.";
+
+  const lead = document.createElement("div");
+  lead.className = "lead";
+  lead.innerHTML = free
+    ? `<h2>Twitchy throttle — free X</h2>
+       <p>The same fix, with the X positions unpinned. Only worth touching once the pinned
+          version isn't enough: <b>x1</b> moves where the bite point sits in the stroke,
+          <b>x2</b> moves where the curve straightens out.</p>`
+    : `<h2>Fixing the twitchy throttle in Assetto Corsa Rally</h2>
+       <p><b>y1</b> sets how soon the pedal bites. <b>Slope</b> sets how hard it comes in after
+          that. X stays pinned — those two are the only knobs you need.</p>`;
+  controls.append(lead);
 
   if (free) {
     const row = document.createElement("div");
@@ -613,14 +674,14 @@ function drawControls() {
   }
 
   controls.append(stepper({
-    label: "y1 (0-100)", value: s.y1, step: 1, dp: 0, min: 0, max: 100,
-    note: "steps of 1",
+    label: "y1 — dead range at the start", value: s.y1, step: 1, dp: 0, min: 0, max: 100,
+    tips: TIPS.y1,
     onChange: v => { s.y1 = v; }
   }));
 
   controls.append(stepper({
-    label: "slope", value: s.slope, step: 0.01, dp: 2, min: -5, max: 5,
-    note: "steps of 0.01 — same number in both coordinate spaces",
+    label: "slope — how fast it rises", value: s.slope, step: 0.01, dp: 2, min: -5, max: 5,
+    tips: TIPS.slope,
     onChange: v => { s.slope = v; }
   }));
 
