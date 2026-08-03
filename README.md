@@ -71,51 +71,58 @@ output. Segments are linear.
 
 ## The experiment (ACR tab only)
 
-Below the editor there's a second graph modelling what the pedal actually does once the
-game has had its turn. The signal chain is:
+The fix is three moves:
+
+1. **Chop the dead part.** `y1` jumps straight over it — reaching 29% output used to cost
+   29% of the pedal, now it costs 3%. That's **+26% of stroke** handed back.
+2. **Slow it down.** Everything the game does between 29 and 79 output happens at
+   **×0.575** — 1.74× more pedal for the same move.
+3. **Sacrifice the top end.** Above 79 output it steepens to **×2.1**. Fair price: you're
+   already committed up there.
+
+Step 2 needs no model at all. Any stretch of throttle output costs exactly `1/slope` more
+pedal travel, whatever ACR's curve turns out to be, because only your own curve is involved.
+You're turning the game's volume down without knowing what it's playing. The one bet is
+that its worst behaviour lives between p1 and p2 — outside that window your curve amplifies
+instead of taming, which is precisely what steps 1 and 3 are spending.
+
+The rest of this section prices that up against a guess at the curve. The signal chain is:
 
 ```
 pedal travel → your Gremlin curve → the game's own curve → throttle
 ```
 
 ACR's stage is **inferred, not measured**: throttle output in, how hard the car pushes out.
+Deliberately simple — one dead zone, one ramp, straight to `(100,100)`:
 
 ```
-push(u) = 0                          u ≤ dead
-          ((u−dead)/(full−dead))^p   dead < u < full
-          1                          u ≥ full
+push(u) = 0                      u ≤ dead
+          ((u−dead)/(1−dead))^p  u > dead
 ```
 
-Three things you can feel pin it down: nothing happens below ~30% output, then it climbs
-far too fast, and past the top of the ramp you're already all-in. The defaults aren't
-fitted — they're **solved**. "My correction makes the response linear" forces the game's
-curve to be the inverse of the correction's main stretch:
+`dead` isn't guessed. The correction implies it: `y1 − slope·x1` = **27.3%** output is where
+the car must start responding for the fix to make sense.
 
-```
-dead = y1 − slope·x1        = 27.3%
-full = y1 + slope·(100−x1)  = 84.8%
-```
+`surge` marks where power starts building fast — about 47% output. **Not a traction limit
+and not wheelspin**: control it smoothly and nothing breaks loose. It's simply where the
+pedal matters most, so it's where you want travel.
 
-Which produces the punchline: the modelled ramp climbs at **1.72×**, and cancelling that
-exactly needs a slope of **0.58**. The curve in use runs **0.575**. The correction is the
-game's own curve, inverted — that's why it feels linear, and it's why the last steep stretch
-costs nothing (the car is already at full push by 85% output).
-
-A fourth parameter, `spin`, marks where the wheels light up — about 47% throttle output.
-Above that line you're managing traction, not modulating, so the pedal travel *below* it is
-the part that matters.
-
-All four parameters are adjustable and affect only the model, never your curve.
+All three parameters are adjustable and affect only the model, never your curve.
 
 Two lines share the axes: pedal straight into the game, and pedal through your curve first.
 Four tiles report what you'd notice from the seat, before → after:
 
 | | Straight in | Through your curve | |
 | --- | --- | --- | --- |
-| Stroke between moving off and wheelspin | 20% | **31.6%** | 1.6× |
-| Dead travel (under 5% push) | 30% | **4.6%** | 0.15× |
-| Stroke covering 10-80% push | 40.6% | **70.6%** | 1.7× |
-| Steepest run inside that band | 17.2% | **9.9%** per 10% pedal | 0.58× |
+| Run-up to the surge | 20% | **31.6%** | 1.6× |
+| Dead travel (under 5% push) | 30.7% | **5.9%** | 0.19× |
+| Stroke covering 10-80% push | 51.2% | **80.8%** | 1.6× |
+| Steepest run inside that band | 13.7% | 28.7% per 10% pedal | 2.1× |
+
+That last row is the honest cost of the simple model: with the ramp running all the way to
+`(100,100)`, the steep top segment of the correction lands on a still-live curve, so it
+shows up as a spike. If ACR actually flattens off near the top — you're at full push before
+full output — that spike isn't real. The model can't tell you which; driving it can.
 
 ## Running it
 
