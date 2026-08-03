@@ -747,12 +747,17 @@ function segments(pts) {
   return out;
 }
 
-// slope 1 is 1:1. 0.575 -> "57.5% of 1:1", i.e. 42.5% slower.
-function vsLinear(slope) {
+// slope 1 is 1:1. 0.575 -> 42.5% slower, split so the headline can be big.
+function vsLinearParts(slope) {
   const d = (slope - 1) * 100;
-  if (!Number.isFinite(slope)) return "vertical";
-  if (Math.abs(d) < 0.05) return "same as 1:1";
-  return `${fmt(Math.abs(d), 1)}% ${d < 0 ? "slower" : "faster"} than 1:1`;
+  if (!Number.isFinite(slope)) return { big: "vertical", tail: "" };
+  if (Math.abs(d) < 0.05) return { big: "same", tail: "as 1:1" };
+  return { big: `${fmt(Math.abs(d), 1)}%`, tail: `${d < 0 ? "slower" : "faster"} than 1:1` };
+}
+
+function vsLinear(slope) {
+  const p = vsLinearParts(slope);
+  return p.tail ? `${p.big} ${p.tail}` : p.big;
 }
 
 function rateCard() {
@@ -763,14 +768,16 @@ function rateCard() {
   const card = document.createElement("div");
   card.className = "rate";
 
+  const headline = vsLinearParts(main.slope);
+
   const big = document.createElement("div");
   big.className = "rate-big";
-  big.innerHTML = `${fmt(main.slope * 100, 1)}%<span> of 1:1</span>`;
+  big.innerHTML = `${headline.big}<span> ${headline.tail}</span>`;
   card.append(big);
 
   const sub = document.createElement("p");
   sub.className = "rate-sub";
-  sub.innerHTML = `<b>${vsLinear(main.slope)}</b> over the main stretch ` +
+  sub.innerHTML = `<b>${fmt(main.slope * 100, 1)}% of 1:1</b> over the main stretch ` +
                   `(${fmt(main.from, 1)} → ${fmt(main.to, 1)}), where most of the driving happens.`;
   card.append(sub);
 
