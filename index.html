@@ -137,7 +137,9 @@
   }
 
   /* ---- graph ---- */
-  .graph { width: 100%; height: auto; touch-action: none; display: block; }
+  /* pan-y so a swipe over a graph still scrolls the page on a phone; only the
+     knobs themselves swallow the gesture, because dragging them needs it */
+  .graph { width: 100%; height: auto; touch-action: pan-y; display: block; }
   .graph text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .gridline { stroke: var(--grid); stroke-width: 1; }
   .axis { stroke: var(--muted); stroke-width: 1.25; }
@@ -146,7 +148,7 @@
   .endpoint { fill: var(--bg); stroke: var(--muted); stroke-width: 1.5; }
   .knob { fill: var(--accent); stroke: var(--panel); stroke-width: 2; cursor: grab; }
   .knob:active { cursor: grabbing; }
-  .knob-hit { fill: transparent; cursor: grab; }
+  .knob-hit { fill: transparent; cursor: grab; touch-action: none; }
   .knob-label { fill: var(--text); font-size: 11px; font-weight: 600; }
 
   /* ---- controls ---- */
@@ -402,6 +404,7 @@
 
   .out-head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
@@ -409,6 +412,16 @@
     background: var(--bg);
     border-bottom: 1px solid var(--line);
   }
+
+  /* five columns don't fit a phone — let them scroll rather than squash */
+  .table-scroll { overflow-x: auto; }
+  .table-scroll table { min-width: 360px; }
+
+  /* Grid items default to min-width:auto, i.e. they refuse to shrink below
+     their content. On a narrow phone that pushes the whole page sideways —
+     the 360px table, or a stepper's buttons plus input. Let them shrink;
+     the table has its own scroll container and the steppers just get tighter. */
+  .cols > *, .model-cols > *, .row2 > *, .stats > * { min-width: 0; }
 
   .out-btns { display: flex; gap: 6px; }
   .out-btns .btn { padding: 6px 10px; font-size: 13px; }
@@ -496,6 +509,46 @@
 
   .copied { color: var(--accent); font-size: 12px; font-weight: 600; }
 
+  /* ---- phones ---- */
+  .t-short { display: none; }
+
+  @media (max-width: 560px) {
+    body { padding: 16px 12px 44px; }
+    h1 { font-size: 18px; }
+    .sub { font-size: 12.5px; }
+
+    .t-long { display: none; }
+    .t-short { display: inline; }
+    .tab { padding: 8px 11px; font-size: 13px; }
+    .tab[aria-selected="true"]::after { margin: 8px -11px -9px; }
+
+    .panel { padding: 14px; }
+    .cols, .model-cols { gap: 20px; }
+    .row2 { grid-template-columns: 1fr; }
+
+    /* 16px keeps iOS from zooming the page when an input takes focus */
+    .stepper input, .pt-row input { font-size: 16px; }
+
+    th, td { padding: 6px 9px; }
+    .out-head { padding: 8px 10px; }
+    .out-btns { width: 100%; }
+    .out-btns .btn { flex: 1; }
+
+    /* the SVG scales down with the viewport, so nudge its type back up */
+    .graph text { font-size: 13.5px; }
+    .knob-label { font-size: 14px; }
+    .surge-label { font-size: 12.5px; }
+
+    #model { margin-top: 22px; padding-top: 18px; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .rate-big { font-size: 24px; }
+    footer { font-size: 11.5px; }
+  }
+
+  @media (max-width: 380px) {
+    .stats { grid-template-columns: 1fr; }
+  }
+
   footer {
     max-width: 1080px;
     margin: 22px auto 0;
@@ -515,8 +568,12 @@
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-raw"   aria-selected="false" data-tab="raw">XY</button>
-    <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">Twitchy throttle (ACR)</button>
-    <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">Twitchy throttle — free X</button>
+    <button class="tab" role="tab" id="tab-fixed" aria-selected="true"  data-tab="fixed">
+      <span class="t-long">Twitchy throttle (ACR)</span><span class="t-short">ACR</span>
+    </button>
+    <button class="tab" role="tab" id="tab-free"  aria-selected="false" data-tab="free">
+      <span class="t-long">Twitchy throttle — free X</span><span class="t-short">ACR free X</span>
+    </button>
   </div>
 
   <div class="panel">
@@ -536,18 +593,20 @@
               <button class="btn" id="copy-btn" type="button">Copy values</button>
             </div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Point</th>
-                <th class="num">X (0-100)</th>
-                <th class="num">Y (0-100)</th>
-                <th class="num">X gremlin</th>
-                <th class="num">Y gremlin</th>
-              </tr>
-            </thead>
-            <tbody id="out-body"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Point</th>
+                  <th class="num">X (0-100)</th>
+                  <th class="num">Y (0-100)</th>
+                  <th class="num">X gremlin</th>
+                  <th class="num">Y gremlin</th>
+                </tr>
+              </thead>
+              <tbody id="out-body"></tbody>
+            </table>
+          </div>
         </div>
         <p class="warn-msg" id="warn" hidden></p>
       </div>
@@ -702,6 +761,15 @@ function drawGraph() {
 let hoverLayer = null;
 let hoverX = null;
 
+// On a phone the SVG is drawn small, so the readout needs bigger type — and a
+// bigger box to hold it. Inline styles, since .graph text would win otherwise.
+function readout() {
+  const big = window.innerWidth <= 560;
+  return big
+    ? { big, s1: "font-size:15px", s2: "font-size:13.5px", y1: 22, y2: 41 }
+    : { big, s1: "font-size:11.5px", s2: "font-size:11px", y1: 17, y2: 31 };
+}
+
 function drawHover() {
   if (!hoverLayer) return;
   hoverLayer.textContent = "";
@@ -725,14 +793,17 @@ function drawHover() {
 
   // Prefer the right of the cursor, flip left when it would overhang — then
   // clamp both axes into the viewBox, or the SVG clips the box.
-  const W = 234, H = 40;
+  const r = readout();
+  const W = r.big ? 300 : 234, H = r.big ? 52 : 40;
   const prefer = cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10;
   const bx = clamp(prefer, 4, SIZE - W - 4);
   const by = clamp(cy - H - 10, 4, SIZE - H - 4);
 
   hoverLayer.append(el("rect", { class: "hov-box", x: bx, y: by, width: W, height: H, rx: 6 }));
-  hoverLayer.append(el("text", { class: "hov-main", x: bx + 9, y: by + 17 }, main));
-  hoverLayer.append(el("text", { class: "hov-sub", x: bx + 9, y: by + 31 }, sub));
+  hoverLayer.append(el("text",
+    { class: "hov-main", style: r.s1, x: bx + 9, y: by + r.y1 }, main));
+  hoverLayer.append(el("text",
+    { class: "hov-sub", style: r.s2, x: bx + 9, y: by + r.y2 }, sub));
 }
 
 graph.addEventListener("pointermove", ev => {
@@ -1003,15 +1074,18 @@ function drawModelHover() {
   modelHover.append(el("circle", { class: "hov-dot-raw", cx, cy: py(now), r: 4 }));
   modelHover.append(el("circle", { class: "hov-dot", cx, cy: py(after), r: 4 }));
 
-  const W = 196, H = 40;
+  const r = readout();
+  const W = r.big ? 260 : 196, H = r.big ? 52 : 40;
   const bx = clamp(cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10, 4, SIZE - W - 4);
   const by = clamp(py(Math.max(now, after)) - H - 12, 4, SIZE - H - 4);
 
   modelHover.append(el("rect", { class: "hov-box", x: bx, y: by, width: W, height: H, rx: 6 }));
-  modelHover.append(el("text", { class: "hov-main", x: bx + 9, y: by + 17 },
+  modelHover.append(el("text",
+    { class: "hov-main", style: r.s1, x: bx + 9, y: by + r.y1 },
     `pedal ${fmt(modelHoverX, 0)}%`));
-  modelHover.append(el("text", { class: "hov-sub", x: bx + 9, y: by + 31 },
-    `now ${fmt(now, 1)}%   ·   with your curve ${fmt(after, 1)}%`));
+  modelHover.append(el("text",
+    { class: "hov-sub", style: r.s2, x: bx + 9, y: by + r.y2 },
+    `in-game ${fmt(now, 1)}%  ·  yours ${fmt(after, 1)}%`));
 }
 
 modelGraph.addEventListener("pointermove", ev => {
