@@ -510,7 +510,6 @@
     <h1>Curve Converter <span>→ Joystick Gremlin</span></h1>
     <p class="sub">
       Design in <code>0-100</code>, read out the <code>-1 … 1</code> numbers to type into Gremlin.
-      Conversion is <code>g = v/50 − 1</code> both axes.
     </p>
   </header>
 
@@ -930,8 +929,8 @@ const modelGraph = document.getElementById("model-graph");
 const modelControls = document.getElementById("model-controls");
 
 function drawModel() {
-  // Only the ACR tab — the other two aren't about this game's curve.
-  modelSection.hidden = state.tab !== "fixed";
+  // Both ACR tabs — XY is generic, so the game's curve means nothing there.
+  modelSection.hidden = state.tab === "raw";
   if (modelSection.hidden) return;
 
   drawFrame(modelGraph, "pedal travel", "throttle in-game");
@@ -967,7 +966,7 @@ function drawModel() {
 
   // y1 marked on the in-game curve: the dividing line between the stretch we
   // chop off and the stretch we slow down. Output is pedal on that curve.
-  const cut = state.fixed.y1;
+  const cut = points()[0].y; // p1 of whichever tab is showing
   modelGraph.append(el("circle", {
     class: "mark-dot", cx: px(cut), cy: py(gameCurve(cut / 100, MODEL) * 100), r: 6
   }));
