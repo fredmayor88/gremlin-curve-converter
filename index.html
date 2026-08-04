@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Curve Converter — 0-100 → Joystick Gremlin</title>
+<script data-goatcounter="https://fredmayor.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 <style>
   :root {
     --warm-white: #F5F2EB;
@@ -642,6 +644,8 @@
   Gremlin curves always own the endpoints <span class="mono">(−1, −1)</span> and
   <span class="mono">(1, 1)</span> — drawn hollow, not editable, not part of the output.
   Segments are linear.
+  <br>Anonymous, cookieless usage counts via GoatCounter. No personal data, no tracking
+  across sites.
 </footer>
 
 <script>
@@ -655,6 +659,28 @@ const toGremlin = v => v / 50 - 1;
 const SIZE = 440, PAD = 34, SPAN = SIZE - 2 * PAD;
 const px = x => PAD + (x / 100) * SPAN;
 const py = y => SIZE - PAD - (y / 100) * SPAN;
+
+/* ---------- analytics ---------- */
+// One hit per event per page load. Dragging a knob or holding a stepper would
+// otherwise fire hundreds of times; the question is only whether people do
+// these things at all. Queued, because count.js loads async and the first
+// events can beat it — and if it's blocked outright, nothing here breaks.
+const trackSeen = new Set();
+const trackQueue = [];
+
+function flushTrack() {
+  if (!window.goatcounter || !window.goatcounter.count) return;
+  while (trackQueue.length) window.goatcounter.count(trackQueue.shift());
+}
+
+function track(name) {
+  if (trackSeen.has(name)) return;
+  trackSeen.add(name);
+  trackQueue.push({ path: name, title: name, event: true });
+  flushTrack();
+}
+
+window.addEventListener("load", flushTrack);
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const snap = (v, step) => Math.round(v / step) * step;
@@ -831,6 +857,7 @@ function eventToData(ev) {
 // move, so anything bound to the knob itself dies mid-drag.
 function startDrag(ev, index) {
   ev.preventDefault();
+  track("drag-point");
 
   const move = e => { applyDrag(index, eventToData(e)); render(); };
   const up = () => {
@@ -876,6 +903,16 @@ function applyDrag(index, at) {
 /* ---------- controls ---------- */
 const controls = document.getElementById("controls");
 
+// Which stepper moved. Anything not listed (the XY table's own inputs) is
+// reported as adjust-other.
+const TRACK_KEY = {
+  y1: "adjust-y1",
+  slope: "adjust-slope",
+  x1: "adjust-x",
+  x2: "adjust-x",
+  shape: "model-shape"
+};
+
 // `step` is the resolution (snapping + arrow keys), `bump` is what -/+ move by.
 function stepper({ key, label, value, step, bump = step, dp, min, max, note, tips, onChange }) {
   const wrap = document.createElement("div");
@@ -902,7 +939,10 @@ function stepper({ key, label, value, step, bump = step, dp, min, max, note, tip
   plus.type = "button";
   plus.textContent = "+";
 
-  const set = v => onChange(tidy(clamp(snap(v, step), min, max)));
+  const set = v => {
+    track(TRACK_KEY[key] || "adjust-other");
+    onChange(tidy(clamp(snap(v, step), min, max)));
+  };
 
   minus.onclick = () => { set(value - bump); render(); };
   plus.onclick = () => { set(value + bump); render(); };
@@ -1425,10 +1465,14 @@ async function copyTo(btn, text) {
 }
 
 const copyBtn = document.getElementById("copy-btn");
-copyBtn.onclick = () => copyTo(copyBtn, outputText());
+copyBtn.onclick = () => {
+  track("copy-values");
+  copyTo(copyBtn, outputText());
+};
 
 const linkBtn = document.getElementById("link-btn");
 linkBtn.onclick = () => {
+  track("copy-link");
   // The debounce may not have fired yet, so build the URL rather than read it.
   copyTo(linkBtn, location.origin + location.pathname + hashFor(state.tab));
 };
@@ -1523,6 +1567,7 @@ function syncUrl() {
 }
 
 function selectTab(tab) {
+  track("tab-" + SLUG[tab]);
   state.tab = tab;
   for (const t of document.querySelectorAll(".tab")) {
     t.setAttribute("aria-selected", String(t.dataset.tab === tab));
@@ -1543,9 +1588,22 @@ window.addEventListener("hashchange", () => {
   selectTab(parsed.tab);
 });
 
+// Did they scroll far enough to see the bonus section at all? A rect check
+// rather than IntersectionObserver — track() already dedupes, and this one
+// is straightforward to test.
+function checkSawExperiment() {
+  if (modelSection.hidden || trackSeen.has("saw-experiment")) return;
+  const r = modelSection.getBoundingClientRect();
+  if (r.top < window.innerHeight - 60 && r.bottom > 0) track("saw-experiment");
+}
+
+window.addEventListener("scroll", checkSawExperiment, { passive: true });
+window.addEventListener("resize", checkSawExperiment);
+
 const onLoad = parseHash();
 if (onLoad) applyParams(onLoad.tab, onLoad.q);
 selectTab(onLoad ? onLoad.tab : state.tab); // render() writes the canonical hash back
+checkSawExperiment(); // on a tall screen it may be visible without scrolling
 </script>
 </body>
 </html>

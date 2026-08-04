@@ -115,3 +115,24 @@ Two lines share the axes: pedal straight into the game, and pedal through your c
 ## Running it
 
 Open `index.html`. That's it — no build, no dependencies.
+
+## Analytics
+
+[GoatCounter](https://www.goatcounter.com) — cookieless, no personal data, no cross-site
+tracking, so no consent banner. It's the page's only external request.
+
+Beyond pageviews and referrers, eight events fire **at most once per page load** (dragging a
+knob would otherwise fire hundreds of times, and the only question is whether people do these
+things at all):
+
+| Event | Means |
+| --- | --- |
+| `tab-xy` / `tab-twitchy` / `tab-twitchy-free` | which tab got opened |
+| `copy-values` | took the numbers to Gremlin — the one that matters |
+| `copy-link` | shared a specific curve |
+| `adjust-y1`, `adjust-slope`, `adjust-x` | tuned rather than just looked |
+| `drag-point` | used the graph instead of the inputs |
+| `model-shape` | played with the experiment |
+| `saw-experiment` | scrolled far enough to reach the bonus section |
+
+If the script is blocked, events queue harmlessly and nothing on the page breaks.
