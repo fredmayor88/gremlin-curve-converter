@@ -558,7 +558,7 @@
           <h3>What it does to the car</h3>
           <p class="model-warn">
             A picture of the effect, against one plausible in-game curve — next to nothing
-            below ~27% throttle output, too steep after. Modelled, not measured.
+            below 30% throttle output, too steep after. Modelled, not measured.
           </p>
           <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
           <ul class="legend">
@@ -887,11 +887,11 @@ const TIPS = {
 // little to drive on. The branches meet at (DEAD, CREEP) and the ramp still
 // lands on (1, 1).
 //
-// DEAD isn't guessed: y1 − slope·x1 = 27.3% is where the correction implies
-// the car starts responding properly. SURGE is where power starts building
-// fast — not a traction limit, control it smoothly and nothing breaks loose.
-// Both are fixed; only the ramp shape is worth playing with.
-const DEAD = 0.27, SURGE = 0.45, CREEP = 0.05;
+// DEAD is the observed 30% — where the car starts responding properly, and
+// what y1 is set to clear. SURGE is where power starts building fast — not a
+// traction limit, control it smoothly and nothing breaks loose. Both are
+// fixed; only the ramp shape is worth playing with.
+const DEAD = 0.30, SURGE = 0.45, CREEP = 0.05;
 const MODEL = { shape: 1 };
 
 function gameCurve(u, { shape }) {

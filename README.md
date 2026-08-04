@@ -101,9 +101,8 @@ push(u) = creep·(u/dead)                          u ≤ dead
 ```
 
 `creep` is 5%: the flat stretch isn't literally nothing, just too little to drive on.
-`dead` is fixed at **27%** — not guessed, but implied by the correction itself
-(`y1 − slope·x1`): that's where the car must start responding properly for the fix to make
-sense.
+`dead` is fixed at **30%** — the observed point where the car starts responding properly,
+and what `y1` is set to clear.
 The marked line at **45%** output is where power starts building fast. **Not a traction
 limit and not wheelspin** — control it smoothly and nothing breaks loose; it's simply where
 the pedal matters most, so it's where you want travel.
