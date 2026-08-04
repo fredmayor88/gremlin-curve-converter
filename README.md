@@ -82,9 +82,8 @@ The fix is three moves:
 3. **Sacrifice the top end.** Above 79 output it steepens to **×2.1**. Fair price: you're
    already committed up there.
 
-You never need the game's exact curve — knowing it's too steep in the middle is enough.
-Step 2 stretches any move it makes over `1/slope` more pedal travel, because only your own
-curve is involved in that number.
+The in-game curve starts rising too late, and it's too steep once it does. So we chop off
+the dead start and slow down what follows — no need to know its exact shape.
 
 The chart is a picture of the effect, drawn against one plausible in-game curve. The signal
 chain is:
@@ -107,8 +106,8 @@ The marked line at **45%** output is where power starts building fast. **Not a t
 limit and not wheelspin** — control it smoothly and nothing breaks loose; it's simply where
 the pedal matters most, so it's where you want travel.
 
-Only the ramp shape is adjustable, and it moves the model only, never your curve. Hovering
-the chart reads out the pedal position and both throttle figures.
+Only the ramp shape is adjustable — it's there to play with, so it isn't carried in the URL.
+Hovering the chart reads out the pedal position and both throttle figures.
 
 Two lines share the axes: pedal straight into the game, and pedal through your curve first.
 

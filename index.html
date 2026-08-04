@@ -967,8 +967,6 @@ function drawModel() {
   modelControls.append(stepper({
     key: "shape", label: "how the power comes in", value: MODEL.shape,
     step: 0.05, dp: 2, min: 0.6, max: 2,
-    note: "1.00 = steady climb · higher = holds off, then piles on late. " +
-          "Moves the model only, never your curve.",
     onChange: v => { MODEL.shape = v; }
   }));
 }
@@ -1041,9 +1039,8 @@ function drawGain() {
         <span class="stat-cap">above ${fmt(p2.y, 1)} output — the bill for the other two.</span>
       </div>
     </div>
-    <p class="gain-cap">You never need the game's exact curve. Knowing it's too steep in the
-      middle is enough: step 2 stretches any move it makes over
-      <b>${fmt(1 / main.slope, 2)}×</b> more pedal.</p>`;
+    <p class="gain-cap">The in-game curve starts rising too late, and it's too steep once it
+      does. So we chop off the dead start and slow down what follows.</p>`;
 }
 
 /* ---------- rate vs. a 1:1 linear response ---------- */
@@ -1381,8 +1378,7 @@ function hashFor(tab) {
   }
   if (tab === "fixed") {
     const s = state.fixed;
-    return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}` +
-           `&shape=${fmt(MODEL.shape, 2)}`;
+    return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}`;
   }
   const s = state.free;
   return `#${SLUG.free}?x1=${fmt(s.x1, 0)}&y1=${fmt(s.y1, 1)}` +
@@ -1424,9 +1420,6 @@ function applyParams(tab, q) {
 
   const slope = num("slope");
   if (slope !== null) s.slope = clamp(tidy(snap(slope, STEP.slope)), -5, 5);
-
-  const shape = num("shape");
-  if (shape !== null) MODEL.shape = clamp(tidy(snap(shape, 0.05)), 0.6, 2);
 }
 
 // Debounced: dragging would otherwise write history on every pointer move,
