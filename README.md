@@ -93,15 +93,17 @@ pedal travel → your Gremlin curve → the game's own curve → throttle
 ```
 
 ACR's stage is **inferred, not measured**: throttle output in, how hard the car pushes out.
-Deliberately simple — one dead zone, one ramp, straight to `(100,100)`:
+Deliberately simple — a near-flat start, one ramp, straight to `(100,100)`:
 
 ```
-push(u) = 0                      u ≤ dead
-          ((u−dead)/(1−dead))^p  u > dead
+push(u) = creep·(u/dead)                          u ≤ dead
+          creep + (1−creep)·((u−dead)/(1−dead))^p  u > dead
 ```
 
+`creep` is 5%: the flat stretch isn't literally nothing, just too little to drive on.
 `dead` is fixed at **27%** — not guessed, but implied by the correction itself
-(`y1 − slope·x1`): that's where the car must start responding for the fix to make sense.
+(`y1 − slope·x1`): that's where the car must start responding properly for the fix to make
+sense.
 The marked line at **45%** output is where power starts building fast. **Not a traction
 limit and not wheelspin** — control it smoothly and nothing breaks loose; it's simply where
 the pedal matters most, so it's where you want travel.
