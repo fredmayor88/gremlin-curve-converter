@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    width: 1200px; height: 630px; overflow: hidden;
+    background: #212529;
+    color: #E8E4DC;
+    font: 400 20px/1.4 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    display: grid; grid-template-columns: 1.15fr 1fr;
+    align-items: center; gap: 40px;
+    padding: 64px 68px;
+  }
+  h1 { font-size: 62px; font-weight: 680; letter-spacing: -0.025em; line-height: 1.03; }
+  h1 span { color: #25C4E2; }
+  p { margin-top: 22px; font-size: 25px; color: #949DA6; line-height: 1.45; max-width: 30ch; }
+  .tag {
+    margin-top: 34px; display: inline-block;
+    font: 600 15px ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: #B89873; border: 1px solid #3C4248;
+    border-radius: 999px; padding: 9px 17px;
+  }
+  svg { width: 100%; height: auto; }
+  .grid { stroke: #2E343A; stroke-width: 1.5; }
+  .axis { stroke: #59626A; stroke-width: 2.5; }
+  .diag { stroke: #59626A; stroke-width: 2; stroke-dasharray: 7 8; }
+  .curve { stroke: #25C4E2; stroke-width: 7; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+  .knob { fill: #25C4E2; stroke: #212529; stroke-width: 5; }
+  .end { fill: #212529; stroke: #59626A; stroke-width: 3.5; }
+</style>
+</head>
+<body>
+  <div>
+    <h1>Curve Converter<br><span>→ Joystick Gremlin</span></h1>
+    <p>Design in 0-100. Read out the numbers Gremlin actually wants.</p>
+    <span class="tag">Driver's Infrastructure</span>
+  </div>
+
+  <svg viewBox="0 0 440 440">
+    <!-- grid -->
+    <g class="grid">
+      <line x1="34" y1="366" x2="406" y2="366"/><line x1="34" y1="292" x2="406" y2="292"/>
+      <line x1="34" y1="218" x2="406" y2="218"/><line x1="34" y1="144" x2="406" y2="144"/>
+      <line x1="34" y1="70"  x2="406" y2="70"/>
+      <line x1="108" y1="34" x2="108" y2="406"/><line x1="182" y1="34" x2="182" y2="406"/>
+      <line x1="256" y1="34" x2="256" y2="406"/><line x1="330" y1="34" x2="330" y2="406"/>
+    </g>
+    <line class="axis" x1="34" y1="406" x2="406" y2="406"/>
+    <line class="axis" x1="34" y1="406" x2="34" y2="34"/>
+    <line class="diag" x1="34" y1="406" x2="406" y2="34"/>
+    <!-- (0,0) -> (3,29) -> (90,79) -> (100,100) mapped into the 34..406 box -->
+    <polyline class="curve" points="34,406 45,298 369,113 406,34"/>
+    <circle class="end" cx="34" cy="406" r="7"/>
+    <circle class="end" cx="406" cy="34" r="7"/>
+    <circle class="knob" cx="45" cy="298" r="11"/>
+    <circle class="knob" cx="369" cy="113" r="11"/>
+  </svg>
+</body>
+</html>
