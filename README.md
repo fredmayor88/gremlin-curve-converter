@@ -82,13 +82,12 @@ The fix is three moves:
 3. **Sacrifice the top end.** Above 79 output it steepens to **×2.1**. Fair price: you're
    already committed up there.
 
-Step 2 needs no model at all. Any stretch of throttle output costs exactly `1/slope` more
-pedal travel, whatever ACR's curve turns out to be, because only your own curve is involved.
-You're turning the game's volume down without knowing what it's playing. The one bet is
-that its worst behaviour lives between p1 and p2 — outside that window your curve amplifies
-instead of taming, which is precisely what steps 1 and 3 are spending.
+You never need the game's exact curve — knowing it's too steep in the middle is enough.
+Step 2 stretches any move it makes over `1/slope` more pedal travel, because only your own
+curve is involved in that number.
 
-The rest of this section prices that up against a guess at the curve. The signal chain is:
+The chart is a picture of the effect, drawn against one plausible in-game curve. The signal
+chain is:
 
 ```
 pedal travel → your Gremlin curve → the game's own curve → throttle
@@ -102,29 +101,16 @@ push(u) = 0                      u ≤ dead
           ((u−dead)/(1−dead))^p  u > dead
 ```
 
-`dead` isn't guessed. The correction implies it: `y1 − slope·x1` = **27.3%** output is where
-the car must start responding for the fix to make sense.
+`dead` is fixed at **27%** — not guessed, but implied by the correction itself
+(`y1 − slope·x1`): that's where the car must start responding for the fix to make sense.
+The marked line at **45%** output is where power starts building fast. **Not a traction
+limit and not wheelspin** — control it smoothly and nothing breaks loose; it's simply where
+the pedal matters most, so it's where you want travel.
 
-`surge` marks where power starts building fast — about 47% output. **Not a traction limit
-and not wheelspin**: control it smoothly and nothing breaks loose. It's simply where the
-pedal matters most, so it's where you want travel.
-
-All three parameters are adjustable and affect only the model, never your curve.
+Only the ramp shape is adjustable, and it moves the model only, never your curve. Hovering
+the chart reads out the pedal position and both throttle figures.
 
 Two lines share the axes: pedal straight into the game, and pedal through your curve first.
-Four tiles report what you'd notice from the seat, before → after:
-
-| | Straight in | Through your curve | |
-| --- | --- | --- | --- |
-| Run-up to the surge | 20% | **31.6%** | 1.6× |
-| Dead travel (under 5% push) | 30.7% | **5.9%** | 0.19× |
-| Stroke covering 10-80% push | 51.2% | **80.8%** | 1.6× |
-| Steepest run inside that band | 13.7% | 28.7% per 10% pedal | 2.1× |
-
-That last row is the honest cost of the simple model: with the ramp running all the way to
-`(100,100)`, the steep top segment of the correction lands on a still-live curve, so it
-shows up as a spike. If ACR actually flattens off near the top — you're at full push before
-full output — that spike isn't real. The model can't tell you which; driving it can.
 
 ## Running it
 

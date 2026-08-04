@@ -308,11 +308,10 @@
   .sw-raw { background: var(--oak); }
   .sw-fixed { background: var(--accent); }
 
-  .sw-band { background: var(--oak); opacity: 0.28; height: 11px; border-radius: 3px; }
 
   .curve-raw { stroke: var(--oak); stroke-width: 2; fill: none; }
   .curve-fixed { stroke: var(--accent); stroke-width: 2.25; fill: none; }
-  .band { fill: var(--accent); opacity: 0.06; }
+  .hov-dot-raw { fill: var(--oak); stroke: var(--panel); stroke-width: 1.5; }
   .surge-line { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
   .surge-label { fill: var(--warn); font-size: 10.5px; font-weight: 650; }
   .surge-tick { stroke-width: 2.5; }
@@ -369,12 +368,18 @@
 
   .inverse b { color: var(--text); font-weight: 650; }
 
-  .model-table { margin-top: 14px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-  .model-table th, .model-table td { padding: 6px 12px; }
-  .model-table td { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
-  .model-table .gain { color: var(--accent); }
+  #model-controls { margin-top: 18px; }
 
-  #model-controls { margin-top: 16px; }
+  .model-cols {
+    display: grid;
+    grid-template-columns: minmax(320px, 460px) 1fr;
+    gap: 26px;
+    align-items: start;
+  }
+
+  @media (max-width: 800px) {
+    .model-cols { grid-template-columns: 1fr; }
+  }
 
   /* hover readout on the XY graph */
   .hov-line { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.7; }
@@ -519,37 +524,6 @@
         <svg class="graph" id="graph" viewBox="0 0 440 440" aria-label="Curve preview"></svg>
         <p class="hint" id="graph-hint"></p>
 
-        <section id="model" hidden>
-          <h3>Why this works without knowing the game's curve</h3>
-          <div id="gain" class="gain"></div>
-
-          <h3 class="second">And what it's worth, if the curve looks like this</h3>
-          <p class="model-warn">
-            <b>Modelled, not measured.</b> The chain is
-            <b>pedal → your curve → ACR's response → how hard the car pushes</b>. That last
-            stage is inferred, not read out of the game: nothing happens below ~30% throttle
-            output, then it climbs far too fast. Kept deliberately simple — one dead zone,
-            one ramp, straight to the corner. The dashed line at ~47% output is where power
-            starts building fast; not a limit and not wheelspin, since controlling it
-            smoothly keeps everything hooked up. It's where the pedal matters most, so it's
-            where you want travel.
-          </p>
-          <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
-          <ul class="legend">
-            <li><i class="sw sw-raw"></i>in-game now — pedal straight through</li>
-            <li><i class="sw sw-fixed"></i>with your curve applied first</li>
-            <li><i class="sw sw-band"></i>the band you modulate in</li>
-          </ul>
-          <div id="model-stats" class="stats"></div>
-          <p id="model-inverse" class="inverse"></p>
-          <div id="model-controls"></div>
-          <table class="model-table">
-            <thead>
-              <tr><th>Pedal</th><th class="num">Throttle now</th><th class="num">With your curve</th></tr>
-            </thead>
-            <tbody id="model-body"></tbody>
-          </table>
-        </section>
       </div>
       <div>
         <div id="controls"></div>
@@ -577,6 +551,28 @@
         <p class="warn-msg" id="warn" hidden></p>
       </div>
     </div>
+
+    <section id="model" hidden>
+      <div class="model-cols">
+        <div>
+          <h3>What it does to the car</h3>
+          <p class="model-warn">
+            A picture of the effect, against one plausible in-game curve — dead below
+            ~27% throttle output, too steep after. Modelled, not measured.
+          </p>
+          <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
+          <ul class="legend">
+            <li><i class="sw sw-raw"></i>in-game now</li>
+            <li><i class="sw sw-fixed"></i>with your curve</li>
+          </ul>
+          <div id="model-controls"></div>
+        </div>
+        <div>
+          <h3>The method</h3>
+          <div id="gain" class="gain"></div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -882,30 +878,22 @@ const TIPS = {
 
 /* ---------- the experiment: what the game does with what we send it ---------- */
 // ACR's own response: throttle output in, how hard the car pushes out.
-// Three observed facts, in order: nothing happens below ~30% output; then it
-// climbs far too fast. Kept deliberately simple: it runs straight to (100,100)
-// rather than flattening off near the top.
+// Deliberately simple — dead zone, then one ramp to (100,100):
 //
-//   push(u) = 0                       u ≤ dead
-//             ((u−dead)/(1−dead))^p    u > dead
+//   push(u) = 0                       u ≤ DEAD
+//             ((u−DEAD)/(1−DEAD))^p   u > DEAD
 //
-// Deliberately simple: dead zone, then one ramp to (100,100). The dead zone
-// default is solved rather than guessed — y1 − slope·x1 = 27.3% — which is
-// where the correction implies the car starts responding.
-// `surge` is the throttle output where power starts building fast. Not a
-// traction limit — control it smoothly and nothing breaks loose. It's where
-// the pedal starts mattering most, which is why you want travel there.
-const MODEL = { dead: 0.27, shape: 1, surge: 0.47 };
+// DEAD isn't guessed: y1 − slope·x1 = 27.3% is where the correction implies
+// the car starts responding. SURGE is where power starts building fast — not
+// a traction limit, control it smoothly and nothing breaks loose. Both are
+// fixed; only the ramp shape is worth playing with.
+const DEAD = 0.27, SURGE = 0.45;
+const MODEL = { shape: 1 };
 
-function gameCurve(u, { dead, shape }) {
-  if (u <= dead) return 0;
-  return ((u - dead) / (1 - dead)) ** shape;
+function gameCurve(u, { shape }) {
+  if (u <= DEAD) return 0;
+  return ((u - DEAD) / (1 - DEAD)) ** shape;
 }
-
-// What you'd notice from the driver's seat, for one response curve.
-// Dead travel is where output is still under 5%; the modulation band is the
-// 10-80% output stretch, i.e. everything short of flat out.
-const BAND = [0.10, 0.80];
 
 // How much pedal travel sits between two throttle-output levels.
 function travelBetween(outputOf, loOut, hiOut) {
@@ -920,32 +908,6 @@ function travelBetween(outputOf, loOut, hiOut) {
   return ((hi ?? 1) - (lo ?? 1)) * 100;
 }
 
-function feelStats(response, outputOf) {
-  const N = 1000;
-  let dead = null, bandLo = null, bandHi = null, worst = 0;
-
-  for (let i = 1; i <= N; i++) {
-    const x = i / N;
-    const y = response(x);
-    if (dead === null && y >= 0.05) dead = x;
-    if (bandLo === null && y >= BAND[0]) bandLo = x;
-    if (bandHi === null && y >= BAND[1]) bandHi = x;
-    // steepest run inside the band — the spike you can't drive around
-    if (y >= BAND[0] && y <= BAND[1]) worst = Math.max(worst, (y - response((i - 1) / N)) * N);
-  }
-
-  // The approach: past the dead zone, up to where power starts building fast.
-  const usable = travelBetween(outputOf, MODEL.dead, MODEL.surge);
-
-  if (bandLo === null) return { dead: 100, zone: 0, worst: 0, usable };
-  return {
-    dead: (dead ?? 1) * 100,
-    zone: ((bandHi ?? 1) - bandLo) * 100,
-    worst: worst * 10, // throttle % per 10% of pedal travel
-    usable
-  };
-}
-
 // Our correction, sampled as a function: pedal 0-1 in, what Gremlin sends 0-1 out.
 function correction(x01) {
   const x = x01 * 100;
@@ -957,7 +919,6 @@ function correction(x01) {
 
 const modelSection = document.getElementById("model");
 const modelGraph = document.getElementById("model-graph");
-const modelBody = document.getElementById("model-body");
 const modelControls = document.getElementById("model-controls");
 
 function drawModel() {
@@ -977,16 +938,11 @@ function drawModel() {
     fixed.push(`${px(x * 100)},${py(fixedAt(x) * 100)}`);
   }
 
-  // shade the band you actually modulate in
-  modelGraph.append(el("rect", {
-    class: "band", x: px(0), y: py(BAND[1] * 100),
-    width: px(100) - px(0), height: py(BAND[0] * 100) - py(BAND[1] * 100)
-  }));
   modelGraph.append(el("polyline", { class: "curve-raw", points: raw.join(" ") }));
   modelGraph.append(el("polyline", { class: "curve-fixed", points: fixed.join(" ") }));
 
-  // where the wheels light up, and where each curve crosses it
-  const surgeY = gameCurve(MODEL.surge, MODEL) * 100;
+  // where power starts building, and where each curve gets there
+  const surgeY = gameCurve(SURGE, MODEL) * 100;
   modelGraph.append(el("line", {
     class: "surge-line", x1: px(0), y1: py(surgeY), x2: px(100), y2: py(surgeY)
   }));
@@ -995,67 +951,71 @@ function drawModel() {
     "power builds fast from here"));
 
   for (const [outputOf, cls] of [[x => x, "tick-raw"], [correction, "tick-fixed"]]) {
-    const at = travelBetween(outputOf, 0, MODEL.surge);
+    const at = travelBetween(outputOf, 0, SURGE);
     modelGraph.append(el("line", {
       class: `surge-tick ${cls}`, x1: px(at), y1: py(surgeY) - 7, x2: px(at), y2: py(surgeY) + 7
     }));
   }
 
+  modelHover = el("g", { "pointer-events": "none" });
+  modelGraph.append(modelHover);
+  if (modelHoverX !== null) drawModelHover();
+
   drawGain();
-  drawStats(feelStats(rawAt, x => x), feelStats(fixedAt, correction));
-
-  modelBody.textContent = "";
-  for (const pedal of [10, 25, 50, 75, 90]) {
-    const x = pedal / 100;
-    const tr = document.createElement("tr");
-    for (const [cls, txt] of [
-      ["", `${pedal}%`],
-      ["num", `${fmt(rawAt(x) * 100, 1)}%`],
-      ["num gain", `${fmt(fixedAt(x) * 100, 1)}%`]
-    ]) {
-      const td = document.createElement("td");
-      td.className = cls;
-      td.textContent = txt;
-      tr.append(td);
-    }
-    modelBody.append(tr);
-  }
-
-  drawInverse();
 
   modelControls.textContent = "";
-  const row = document.createElement("div");
-  row.className = "row2";
-  row.append(
-    stepper({
-      key: "dead", label: "model: dead until", value: MODEL.dead * 100,
-      step: 1, dp: 0, min: 0, max: 60,
-      onChange: v => { MODEL.dead = tidy(v / 100); }
-    }),
-    stepper({
-      key: "surge", label: "model: power builds from", value: MODEL.surge * 100,
-      step: 1, dp: 0, min: 20, max: 100,
-      onChange: v => { MODEL.surge = tidy(v / 100); }
-    })
-  );
-  modelControls.append(row);
-
   modelControls.append(stepper({
-    key: "shape", label: "model: ramp shape", value: MODEL.shape,
+    key: "shape", label: "how the power comes in", value: MODEL.shape,
     step: 0.05, dp: 2, min: 0.6, max: 2,
-    note: "1.00 is a straight ramp to (100,100), above that is the slightly-exponential " +
-          "version. All three move the model only, never your curve.",
+    note: "1.00 = steady climb · higher = holds off, then piles on late. " +
+          "Moves the model only, never your curve.",
     onChange: v => { MODEL.shape = v; }
   }));
 }
 
-// The part that needs no model at all. Whatever the game does with what we
-// send it, the correction is a volume knob on it:
-//   · travel  — any stretch of throttle output now costs 1/slope more pedal.
-//               Exact, always, because it only involves our own curve.
-//   · spikes  — multiplied by the slope, but ONLY between p1 and p2. Outside
-//               that window the lead-in and top-end multiply them instead,
-//               which is why where you put p1 and p2 is the whole game.
+/* ---------- hover readout on the model graph ---------- */
+let modelHover = null;
+let modelHoverX = null;
+
+function drawModelHover() {
+  if (!modelHover) return;
+  modelHover.textContent = "";
+  if (modelHoverX === null) return;
+
+  const x = modelHoverX / 100;
+  const now = gameCurve(x, MODEL) * 100;
+  const after = gameCurve(correction(x), MODEL) * 100;
+  const cx = px(modelHoverX);
+
+  modelHover.append(el("line", { class: "hov-line", x1: cx, y1: py(0), x2: cx, y2: py(100) }));
+  modelHover.append(el("circle", { class: "hov-dot-raw", cx, cy: py(now), r: 4 }));
+  modelHover.append(el("circle", { class: "hov-dot", cx, cy: py(after), r: 4 }));
+
+  const W = 196, H = 40;
+  const bx = clamp(cx + W + 12 > SIZE - PAD ? cx - W - 10 : cx + 10, 4, SIZE - W - 4);
+  const by = clamp(py(Math.max(now, after)) - H - 12, 4, SIZE - H - 4);
+
+  modelHover.append(el("rect", { class: "hov-box", x: bx, y: by, width: W, height: H, rx: 6 }));
+  modelHover.append(el("text", { class: "hov-main", x: bx + 9, y: by + 17 },
+    `pedal ${fmt(modelHoverX, 0)}%`));
+  modelHover.append(el("text", { class: "hov-sub", x: bx + 9, y: by + 31 },
+    `now ${fmt(now, 1)}%   ·   with your curve ${fmt(after, 1)}%`));
+}
+
+modelGraph.addEventListener("pointermove", ev => {
+  const r = modelGraph.getBoundingClientRect();
+  const gx = (ev.clientX - r.left) / r.width * SIZE;
+  modelHoverX = clamp((gx - PAD) / SPAN * 100, 0, 100);
+  drawModelHover();
+});
+
+modelGraph.addEventListener("pointerleave", () => {
+  modelHoverX = null;
+  drawModelHover();
+});
+
+// The method, in three moves. Nothing here needs the model — the numbers come
+// off our own curve, which is why knowing the game's exact shape is optional.
 function drawGain() {
   const [lead, main, top] = segments(points());
   const [p1, p2] = points();
@@ -1078,70 +1038,12 @@ function drawGain() {
       <div class="stat">
         <span class="stat-label">3 · Pay at the top</span>
         <span class="stat-nums"><b class="lose">×${fmt(top.slope, 2)}</b></span>
-        <span class="stat-cap">above ${fmt(p2.y, 1)} output — the bill for the other two.
-          Cheap if the car is near flat-out up there; the simple model assumes it isn't.</span>
+        <span class="stat-cap">above ${fmt(p2.y, 1)} output — the bill for the other two.</span>
       </div>
     </div>
-    <p class="gain-cap">Step 2 is the one that needs no model: any stretch of throttle output
-      now costs <b>${fmt(1 / main.slope, 2)}×</b> more pedal, exactly, whatever ACR's curve
-      turns out to be. You're turning its volume down without knowing what it's playing. The
-      only bet is that its worst behaviour lives between ${fmt(p1.y, 1)} and ${fmt(p2.y, 1)} —
-      which is what steps 1 and 3 are buying.</p>`;
-}
-
-// The punchline: a correction that flattens this curve has to be its inverse.
-function drawInverse() {
-  const ideal = 1 - MODEL.dead;        // slope that would cancel the ramp exactly
-  const ramp = 1 / ideal;
-  const mine = state.fixed.slope;
-  const off = mine - ideal;
-
-  let verdict;
-  if (Math.abs(off) < 0.02) {
-    verdict = `. Dead on — your curve is the game's, inverted, so the response comes out straight.`;
-  } else if (off < 0) {
-    verdict = `, which is ${fmt(-off, 3)} under. The response lands progressive rather than ` +
-              `flat: softer than 1:1 through the middle, with more of the work left to the top.`;
-  } else {
-    verdict = `, which is ${fmt(off, 3)} over — the response still climbs faster than 1:1 ` +
-              `through the middle.`;
-  }
-
-  document.getElementById("model-inverse").innerHTML =
-    `The modelled ramp climbs at <b>${fmt(ramp, 2)}×</b>, so cancelling it exactly needs a ` +
-    `slope of <b>${fmt(ideal, 3)}</b> — you're running <b>${fmt(mine, 3)}</b>${verdict}` +
-    ` Its dead zone ends at <b>${fmt(MODEL.dead * 100, 0)}%</b> output, which is what y1 jumps over.`;
-}
-
-/* ---------- the three things you'd notice ---------- */
-const STAT_DEFS = [
-  { key: "usable", label: "Run-up to the surge", unit: "%", better: "higher",
-    caption: "of the stroke between moving off and power building fast" },
-  { key: "dead", label: "Dead travel", unit: "%", better: "lower",
-    caption: "of the stroke before anything happens" },
-  { key: "zone", label: "Modulation room", unit: "%", better: "higher",
-    caption: "of the stroke covers 10-80% push" },
-  { key: "worst", label: "Worst spike", unit: "%", better: "lower",
-    caption: "push per 10% pedal, inside that band" }
-];
-
-function drawStats(raw, fixed) {
-  const wrap = document.getElementById("model-stats");
-  wrap.textContent = "";
-
-  for (const def of STAT_DEFS) {
-    const before = raw[def.key], after = fixed[def.key];
-    const won = def.better === "lower" ? after < before : after > before;
-
-    const tile = document.createElement("div");
-    tile.className = "stat";
-    tile.innerHTML =
-      `<span class="stat-label">${def.label}</span>` +
-      `<span class="stat-nums"><s>${fmt(before, 1)}${def.unit}</s>` +
-      `<b class="${won ? "win" : "lose"}">${fmt(after, 1)}${def.unit}</b></span>` +
-      `<span class="stat-cap">${def.caption}</span>`;
-    wrap.append(tile);
-  }
+    <p class="gain-cap">You never need the game's exact curve. Knowing it's too steep in the
+      middle is enough: step 2 stretches any move it makes over
+      <b>${fmt(1 / main.slope, 2)}×</b> more pedal.</p>`;
 }
 
 /* ---------- rate vs. a 1:1 linear response ---------- */
@@ -1480,8 +1382,7 @@ function hashFor(tab) {
   if (tab === "fixed") {
     const s = state.fixed;
     return `#${SLUG.fixed}?y1=${fmt(s.y1, 1)}&slope=${fmt(s.slope, 3)}` +
-           `&dead=${fmt(MODEL.dead * 100, 0)}` +
-           `&surge=${fmt(MODEL.surge * 100, 0)}&shape=${fmt(MODEL.shape, 2)}`;
+           `&shape=${fmt(MODEL.shape, 2)}`;
   }
   const s = state.free;
   return `#${SLUG.free}?x1=${fmt(s.x1, 0)}&y1=${fmt(s.y1, 1)}` +
@@ -1523,12 +1424,6 @@ function applyParams(tab, q) {
 
   const slope = num("slope");
   if (slope !== null) s.slope = clamp(tidy(snap(slope, STEP.slope)), -5, 5);
-
-  const dead = num("dead");
-  if (dead !== null) MODEL.dead = clamp(tidy(snap(dead, 1)), 0, 60) / 100;
-
-  const surge = num("surge");
-  if (surge !== null) MODEL.surge = clamp(tidy(snap(surge, 1)), 20, 100) / 100;
 
   const shape = num("shape");
   if (shape !== null) MODEL.shape = clamp(tidy(snap(shape, 0.05)), 0.6, 2);
