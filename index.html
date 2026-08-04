@@ -1122,6 +1122,7 @@ function drawModel() {
   modelControls.append(stepper({
     key: "shape", label: "how the power comes in", value: MODEL.shape,
     step: 0.05, dp: 2, min: 0.6, max: 2,
+    note: "Simulation only — changes nothing in the game, and nothing in your curve.",
     onChange: v => { MODEL.shape = v; }
   }));
 }
