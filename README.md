@@ -13,7 +13,7 @@ value   = (gremlin + 1) * 50
 ```
 
 Because both axes scale by the same factor, **a slope is the same number in either space** —
-0.575 in `0-100` is 0.575 in Gremlin.
+0.585 in `0-100` is 0.585 in Gremlin.
 
 ## Tabs
 
@@ -34,8 +34,8 @@ were looking at. **Copy link** in the output header gives you the current one.
 | Tab | Link |
 | --- | --- |
 | XY | [`#xy?p=3,29;90,79`](https://fredmayor88.github.io/gremlin-curve-converter/#xy?p=3,29;90,79) |
-| Twitchy throttle | [`#twitchy?y1=29&slope=0.575`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy?y1=29&slope=0.575) |
-| Free X | [`#twitchy-free?x1=3&y1=29&x2=90&slope=0.575`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy-free?x1=3&y1=29&x2=90&slope=0.575) |
+| Twitchy throttle | [`#twitchy?y1=29&slope=0.585`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy?y1=29&slope=0.585) |
+| Free X | [`#twitchy-free?x1=3&y1=29&x2=90&slope=0.585`](https://fredmayor88.github.io/gremlin-curve-converter/#twitchy-free?x1=3&y1=29&x2=90&slope=0.585) |
 
 Values from a URL go through the same snapping and clamping as typed input, so a malformed
 or out-of-range link falls back to something legal instead of drawing a broken curve.
@@ -56,16 +56,16 @@ or out-of-range link falls back to something legal instead of drawing a broken c
 
 Resolution is enforced everywhere — dragging, typing and arrow keys all snap to it.
 
-The tab also reports the curve **against a 1:1 linear response**: the default `0.575`
-reads as *57.5% of 1:1 — 42.5% slower* over the main stretch, with the steep lead-in and
-the top-end segment listed separately (they aren't 57.5%, and pretending otherwise would
+The tab also reports the curve **against a 1:1 linear response**: the default `0.585`
+reads as *58.5% of 1:1 — 41.5% slower* over the main stretch, with the steep lead-in and
+the top-end segment listed separately (they aren't 58.5%, and pretending otherwise would
 be misleading).
 
-Default preset is `y1 = 29`, `slope = 0.575`, which lands on:
+Default preset is `y1 = 29`, `slope = 0.585`, which lands on:
 
 ```
 p1 = (-0.94, -0.42)   gremlin  ->  (3, 29)        0-100
-p2 = (0.8,   0.5805)  gremlin  ->  (90, 79.025)   0-100
+p2 = (0.8,   0.5979)  gremlin  ->  (90, 79.895)   0-100
 ```
 
 Gremlin owns the endpoints `(-1, -1)` and `(1, 1)`; they're drawn hollow and stay out of the
@@ -77,9 +77,9 @@ The fix is three moves:
 
 1. **Chop the dead part.** `y1` jumps straight over it — reaching 29% output used to cost
    29% of the pedal, now it costs 3%. That's **+26% of stroke** handed back.
-2. **Slow it down.** Everything the game does between 29 and 79 output happens at
-   **×0.575** — 1.74× more pedal for the same move.
-3. **Sacrifice the top end.** Above 79 output it steepens to **×2.1**. Fair price: you're
+2. **Slow it down.** Everything the game does between 29 and 80 output happens at
+   **×0.585** — 1.71× more pedal for the same move.
+3. **Sacrifice the top end.** Above 80 output it steepens to **×2.01**. Fair price: you're
    already committed up there.
 
 The in-game curve starts rising too late, and it's too steep once it does. So we chop off

@@ -714,7 +714,7 @@ window.addEventListener("load", flushTrack);
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const snap = (v, step) => Math.round(v / step) * step;
-// kill float dust from snapping (0.575 must not become 0.5750000000000001)
+// kill float dust from snapping (0.585 must not become 0.5850000000000001)
 const tidy = v => Math.round(v * 1e6) / 1e6;
 
 function fmt(v, dp) {
@@ -725,14 +725,14 @@ function fmt(v, dp) {
 
 /* ---------- state ---------- */
 // The default preset is the curve worked out in curveSettings.txt:
-// p1 = (3, 29) -> (-0.94, -0.42), slope 0.575, p2 = (90, 79.025) -> (0.8, 0.5805)
+// p1 = (3, 29) -> (-0.94, -0.42), slope 0.585, p2 = (90, 79.895) -> (0.8, 0.5979)
 const FIXED_X1 = 3, FIXED_X2 = 90;
 
 const state = {
   tab: "fixed",
   raw: { points: [ { x: 3, y: 29 }, { x: 90, y: 79 } ] },
-  fixed: { y1: 29, slope: 0.575 },
-  free: { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.575 }
+  fixed: { y1: 29, slope: 0.585 },
+  free: { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.585 }
 };
 
 /* ---------- derive the point list for the active tab ---------- */
@@ -1220,7 +1220,7 @@ function segments(pts) {
   return out;
 }
 
-// slope 1 is 1:1. 0.575 -> 42.5% slower, split so the headline can be big.
+// slope 1 is 1:1. 0.585 -> 41.5% slower, split so the headline can be big.
 function vsLinearParts(slope) {
   const d = (slope - 1) * 100;
   if (!Number.isFinite(slope)) return { big: "vertical", tail: "" };
@@ -1355,8 +1355,8 @@ function drawControls() {
   reset.type = "button";
   reset.textContent = "Reset to default preset";
   reset.onclick = () => {
-    if (free) Object.assign(state.free, { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.575 });
-    else Object.assign(state.fixed, { y1: 29, slope: 0.575 });
+    if (free) Object.assign(state.free, { x1: FIXED_X1, y1: 29, x2: FIXED_X2, slope: 0.585 });
+    else Object.assign(state.fixed, { y1: 29, slope: 0.585 });
     render();
   };
 
@@ -1530,7 +1530,7 @@ function render() {
 
 /* ---------- routing ---------- */
 // The whole curve lives in the URL, so a link carries the settings, not just
-// the tab:  #twitchy?y1=29&slope=0.575  ·  #xy?p=3,29;90,79
+// the tab:  #twitchy?y1=29&slope=0.585  ·  #xy?p=3,29;90,79
 const SLUG = { raw: "xy", fixed: "twitchy", free: "twitchy-free" };
 const TAB_OF = Object.fromEntries(Object.entries(SLUG).map(([tab, slug]) => [slug, tab]));
 
