@@ -312,6 +312,8 @@
   .curve-raw { stroke: var(--oak); stroke-width: 2; fill: none; }
   .curve-fixed { stroke: var(--accent); stroke-width: 2.25; fill: none; }
   .hov-dot-raw { fill: var(--oak); stroke: var(--panel); stroke-width: 1.5; }
+  .sw-mark { background: var(--warn); width: 10px; height: 10px; border-radius: 50%; }
+  .mark-dot { fill: var(--warn); stroke: var(--panel); stroke-width: 2; }
   .surge-line { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.8; }
   .surge-label { fill: var(--warn); font-size: 10.5px; font-weight: 650; }
   .surge-tick { stroke-width: 2.5; }
@@ -562,8 +564,10 @@
           </p>
           <svg class="graph" id="model-graph" viewBox="0 0 440 440" aria-label="Modelled result"></svg>
           <ul class="legend">
-            <li><i class="sw sw-raw"></i>in-game now</li>
+            <li><i class="sw sw-raw"></i>in-game</li>
             <li><i class="sw sw-fixed"></i>with your curve</li>
+            <li><i class="sw sw-mark"></i>y1 — we chop off what's left of this,
+              and slow down what's right of it</li>
           </ul>
           <div id="model-controls"></div>
         </div>
@@ -960,6 +964,13 @@ function drawModel() {
       class: `surge-tick ${cls}`, x1: px(at), y1: py(surgeY) - 7, x2: px(at), y2: py(surgeY) + 7
     }));
   }
+
+  // y1 marked on the in-game curve: the dividing line between the stretch we
+  // chop off and the stretch we slow down. Output is pedal on that curve.
+  const cut = state.fixed.y1;
+  modelGraph.append(el("circle", {
+    class: "mark-dot", cx: px(cut), cy: py(gameCurve(cut / 100, MODEL) * 100), r: 6
+  }));
 
   modelHover = el("g", { "pointer-events": "none" });
   modelGraph.append(modelHover);
