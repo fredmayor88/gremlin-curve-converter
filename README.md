@@ -136,3 +136,11 @@ things at all):
 | `saw-experiment` | scrolled far enough to reach the bonus section |
 
 If the script is blocked, events queue harmlessly and nothing on the page breaks.
+
+A `<link rel="canonical">` keeps campaign parameters (`?utm_source=…`) from splitting the
+stats across rows. To keep your own visits out of the dashboard, run this once in the
+browser console on the live page:
+
+```js
+localStorage.setItem("skipgc", "t")
+```
